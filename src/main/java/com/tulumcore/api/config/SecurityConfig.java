@@ -29,10 +29,11 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Rutas públicas (No requieren Token)
+                        // 1. Rutas públicas
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/webhook/**").permitAll() // <--- PUERTA PARA MERCADO PAGO
-                        // 2. El resto del SaaS está cerrado con candado
+                        .requestMatchers("/api/webhook/**").permitAll()
+                        .requestMatchers("/api/external/**").permitAll() // <-- ACCESO PARA n8n / BOT
+                        // 2. Seguridad del SaaS
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(tenantFilter, UsernamePasswordAuthenticationFilter.class);

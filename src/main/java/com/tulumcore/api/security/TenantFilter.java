@@ -25,7 +25,7 @@ public class TenantFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // 1. BYPASS DE CORS: Dejamos pasar las peticiones OPTIONS sin preguntar nada
+        // 1. BYPASS DE CORS
         if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
             filterChain.doFilter(request, response);
             return;
@@ -33,23 +33,48 @@ public class TenantFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
-        // 2. BYPASS DE RUTAS PÚBLICAS
-        if (path.startsWith("/api/auth") || path.startsWith("/api/webhook")) {
-            filterChain.doFilter(request, response);
+        // 2. BYPASS DE RUTAS PÚBLICAS Y EXTERNAS (n8n / Bot)
+        if (path.startsWith("/api/auth") || path.startsWith("/api/webhook") || path.startsWith("/api/external")) {
+
+            // Si es una ruta externa, intentamos setear el Tenant desde el Header directo
+            if (path.startsWith("/api/external")) {
+                String tenantIdHeader = request.getHeader("X-Tenant-ID");
+                if (tenantIdHeader != null && !tenantIdHeader.isEmpty()) {
+                    TenantContext.setCurrentTenant(tenantIdHeader);
+
+                    // Creamos una autenticación ficticia de "Sistema" para que Spring Security no rebote
+                    UsernamePasswordAuthenticationToken systemAuth = new UsernamePasswordAuthenticationToken(
+                            "SYSTEM_BOT", null, Collections.emptyList()
+                    );
+                    SecurityContextHolder.getContext().setAuthentication(systemAuth);
+                } else {
+                    // Si es external pero no mandan el ID del local, rebotamos
+                    response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\": \"X-Tenant-ID requerido para peticiones externas\"}");
+                    return;
+                }
+            }
+
+            try {
+                filterChain.doFilter(request, response);
+            } finally {
+                TenantContext.clear();
+            }
             return;
         }
 
         final String authHeader = request.getHeader("Authorization");
 
-        // 3. VALIDACIÓN DE PRESENCIA DE TOKEN
+        // 3. VALIDACIÓN DE PRESENCIA DE TOKEN (Solo para el resto de la App)
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
             response.getWriter().write("{\"error\": \"Token requerido para esta operacion\"}");
-            return; // Cortamos la ejecución acá
+            return;
         }
 
-        // 4. LECTURA DEL TOKEN (Protegido con Try-Catch SOLO para el token)
+        // 4. LECTURA DEL TOKEN JWT
         try {
             String jwt = authHeader.substring(7);
             Claims claims = jwtService.extractAllClaims(jwt);
@@ -67,14 +92,13 @@ public class TenantFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
             response.getWriter().write("{\"error\": \"Token invalido o expirado\"}");
-            return; // Cortamos la ejecución si el token es trucho
+            return;
         }
 
-        // 5. EJECUCIÓN DEL CONTROLADOR (Fuera del try-catch del token)
+        // 5. EJECUCIÓN DEL CONTROLADOR
         try {
             filterChain.doFilter(request, response);
         } finally {
-            // Limpiamos siempre el Tenant al terminar la petición
             TenantContext.clear();
         }
     }
