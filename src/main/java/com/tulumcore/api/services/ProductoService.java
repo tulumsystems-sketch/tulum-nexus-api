@@ -1,5 +1,6 @@
 package com.tulumcore.api.services;
 
+import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.Producto;
 import com.tulumcore.api.repositories.ProductoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,11 @@ import java.util.Optional;
 public class ProductoService {
    @Autowired
    private ProductoRepository productoRepository;
+
+    public List<Producto> buscarPorNombre(String query) {
+        String tenant = TenantContext.getCurrentTenant();
+        return productoRepository.findByNombreContainingIgnoreCaseAndTenantId(query, tenant);
+    }
 
    public List<Producto> getAllProductos(){
        return productoRepository.findAll();

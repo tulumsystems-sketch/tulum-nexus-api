@@ -18,14 +18,12 @@ public class TulumCoreApplication {
     @Bean
     public CommandLineRunner initData(UsuarioRepository repo, PasswordEncoder passwordEncoder) {
         return args -> {
-            // Verificamos si ya existe para no crearlo dos veces
             if (repo.findByEmail("usuario@empresa.com").isEmpty()) {
                 Usuario u = new Usuario();
                 u.setEmail("usuario@empresa.com");
-                // ¡Acá está la magia! Encriptamos la contraseña antes de guardarla
                 u.setPassword(passwordEncoder.encode("12345678"));
                 repo.save(u);
-                System.out.println("✅ Usuario de prueba creado: usuario@empresa.com / Pass: 12345678");
+                System.out.println("Usuario de prueba creado: usuario@empresa.com / Pass: 12345678");
             }
         };
 
