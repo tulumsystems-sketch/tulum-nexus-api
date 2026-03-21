@@ -2,6 +2,8 @@ package com.tulumcore.api.controllers;
 
 import com.tulumcore.api.entities.Categoria;
 import com.tulumcore.api.entities.Producto;
+import com.tulumcore.api.exceptions.BusinessException;
+import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.services.CategoriaService;
 import com.tulumcore.api.services.ProductoService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,64 +23,86 @@ public class ProductoController {
     private CategoriaService categoriaService;
 
     @GetMapping
-    public List<Producto> getAllProductos() {
-        return productoService.getAllProductos();
+    public List<ProductoResponseDTO> getAllProductos() {
+        return productoService.getAllProductos()
+                .stream()
+                .map(this::toDTO)
+                .toList();
     }
 
     @PostMapping
-    public ResponseEntity<?> createProducto(@RequestBody ProductoDTO productoDTO) {
-        if (productoDTO.getNombre() == null || productoDTO.getNombre().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("El nombre del producto es obligatorio");
+    public ResponseEntity<ProductoResponseDTO> createProducto(@RequestBody ProductoDTO dto) {
+        if (dto.getNombre() == null || dto.getNombre().trim().isEmpty()) {
+            throw new BusinessException("El nombre del producto es obligatorio");
         }
 
-        Categoria categoria = categoriaService.getCategoriaById(productoDTO.getCategoriaId())
-                .orElseThrow(() -> new RuntimeException("Categoría no encontrada"));
+        Categoria categoria = categoriaService.getCategoriaById(dto.getCategoriaId())
+                .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada con id: " + dto.getCategoriaId()));
 
         Producto producto = new Producto();
-        producto.setNombre(productoDTO.getNombre());
-        producto.setDescripcion(productoDTO.getDescripcion());
-        producto.setPrecio(productoDTO.getPrecio());
-        producto.setCantidadStock(productoDTO.getCantidadStock());
-        producto.setMedidas(productoDTO.getMedidas());
-        producto.setImageUrl(productoDTO.getImageUrl()); // <-- Mapeo de imagen
+        producto.setNombre(dto.getNombre());
+        producto.setDescripcion(dto.getDescripcion());
+        producto.setPrecio(dto.getPrecio());
+        producto.setCantidadStock(dto.getCantidadStock());
+        producto.setMedidas(dto.getMedidas());
+        producto.setImageUrl(dto.getImageUrl());
         producto.setCategoria(categoria);
 
-        Producto createdProducto = productoService.createOrUpdateProducto(producto);
-        return ResponseEntity.ok(createdProducto);
+        return ResponseEntity.ok(toDTO(productoService.createOrUpdateProducto(producto)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Producto> updateProducto(@PathVariable Long id, @RequestBody ProductoDTO productoDTO) {
-        return productoService.getProductoById(id)
-                .map(existingProducto -> {
-                    existingProducto.setNombre(productoDTO.getNombre());
-                    existingProducto.setDescripcion(productoDTO.getDescripcion());
-                    existingProducto.setPrecio(productoDTO.getPrecio());
-                    existingProducto.setCantidadStock(productoDTO.getCantidadStock());
-                    existingProducto.setMedidas(productoDTO.getMedidas());
+    public ProductoResponseDTO updateProducto(@PathVariable Long id, @RequestBody ProductoDTO dto) {
+        Producto existente = productoService.getProductoById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con id: " + id));
 
-                    // Solo actualizamos la imagen si el DTO trae una (nueva o vieja)
-                    if (productoDTO.getImageUrl() != null) {
-                        existingProducto.setImageUrl(productoDTO.getImageUrl());
-                    }
+        existente.setNombre(dto.getNombre());
+        existente.setDescripcion(dto.getDescripcion());
+        existente.setPrecio(dto.getPrecio());
+        existente.setCantidadStock(dto.getCantidadStock());
+        existente.setMedidas(dto.getMedidas());
 
-                    if (productoDTO.getCategoriaId() != null) {
-                        Categoria categoria = categoriaService.getCategoriaById(productoDTO.getCategoriaId()).orElse(null);
-                        existingProducto.setCategoria(categoria);
-                    }
+        if (dto.getImageUrl() != null) {
+            existente.setImageUrl(dto.getImageUrl());
+        }
 
-                    Producto updatedProducto = productoService.createOrUpdateProducto(existingProducto);
-                    return ResponseEntity.ok(updatedProducto);
-                })
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        if (dto.getCategoriaId() != null) {
+            Categoria categoria = categoriaService.getCategoriaById(dto.getCategoriaId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada con id: " + dto.getCategoriaId()));
+            existente.setCategoria(categoria);
+        }
+
+        return toDTO(productoService.createOrUpdateProducto(existente));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProducto(@PathVariable Long id) {
-        if (productoService.getProductoById(id).isPresent()) {
-            productoService.deleteProducto(id);
-            return ResponseEntity.noContent().build();
+        productoService.getProductoById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con id: " + id));
+        productoService.deleteProducto(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // =============================================
+    // Mapper privado: entidad → DTO
+    // =============================================
+    private ProductoResponseDTO toDTO(Producto p) {
+        CategoriaDTO categoriaDTO = null;
+        if (p.getCategoria() != null) {
+            categoriaDTO = new CategoriaDTO();
+            categoriaDTO.setId(p.getCategoria().getId());
+            categoriaDTO.setNombre(p.getCategoria().getNombre());
         }
-        return ResponseEntity.notFound().build();
+
+        return new ProductoResponseDTO(
+                p.getId(),
+                p.getNombre(),
+                p.getDescripcion(),
+                p.getPrecio(),
+                p.getCantidadStock(),
+                p.getMedidas(),
+                p.getImageUrl(),
+                categoriaDTO
+        );
     }
 }

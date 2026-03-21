@@ -3,21 +3,24 @@ package com.tulumcore.api.entities;
 import jakarta.persistence.*;
 
 @Entity
+@Table(name = "usuarios")
 public class Usuario extends BaseEntity {
 
-    // NOTA: Si BaseEntity ya tiene el @Id, borrá estas dos líneas (id).
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String email; // Cambiado para coincidir con el Frontend
+    private String email;
 
     @Column(nullable = false)
     private String password;
 
-    // --- GETTERS Y SETTERS ---
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Rol rol = Rol.OPERADOR; // Por defecto todo usuario nuevo es OPERADOR
 
+    // --- Getters y Setters ---
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -26,4 +29,7 @@ public class Usuario extends BaseEntity {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public Rol getRol() { return rol; }
+    public void setRol(Rol rol) { this.rol = rol; }
 }

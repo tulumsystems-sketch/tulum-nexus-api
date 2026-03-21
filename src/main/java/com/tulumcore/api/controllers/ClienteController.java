@@ -1,6 +1,7 @@
 package com.tulumcore.api.controllers;
 
 import com.tulumcore.api.entities.Cliente;
+import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.services.ClienteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,64 +16,61 @@ public class ClienteController {
     @Autowired
     private ClienteService clienteService;
 
-    /**
-     * Lista todos los clientes pertenecientes al Tenant actual.
-     */
     @GetMapping
-    public List<Cliente> getAllClientes() {
-        return clienteService.getAllClientes();
+    public List<ClienteResponseDTO> getAllClientes() {
+        return clienteService.getAllClientes()
+                .stream()
+                .map(this::toDTO)
+                .toList();
     }
 
-    /**
-     * Obtiene un cliente específico por ID.
-     */
     @GetMapping("/{id}")
-    public ResponseEntity<Cliente> getClienteById(@PathVariable Long id) {
+    public ClienteResponseDTO getClienteById(@PathVariable Long id) {
         return clienteService.getClienteById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .map(this::toDTO)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con id: " + id));
     }
 
-    /**
-     * Crea un nuevo cliente mapeando los datos desde el DTO.
-     */
     @PostMapping
-    public ResponseEntity<Cliente> createCliente(@RequestBody ClienteDTO dto) {
+    public ResponseEntity<ClienteResponseDTO> createCliente(@RequestBody ClienteDTO dto) {
         Cliente cliente = new Cliente();
         cliente.setNombre(dto.getNombre());
         cliente.setApellido(dto.getApellido());
         cliente.setEmpresa(dto.getEmpresa());
 
         Cliente creado = clienteService.createOrUpdateCliente(cliente);
-        return ResponseEntity.ok(creado);
+        return ResponseEntity.ok(toDTO(creado));
     }
 
-    /**
-     * Actualiza un cliente existente.
-     */
     @PutMapping("/{id}")
-    public ResponseEntity<Cliente> updateCliente(@PathVariable Long id, @RequestBody ClienteDTO dto) {
-        return clienteService.getClienteById(id)
-                .map(existingCliente -> {
-                    existingCliente.setNombre(dto.getNombre());
-                    existingCliente.setApellido(dto.getApellido());
-                    existingCliente.setEmpresa(dto.getEmpresa());
+    public ClienteResponseDTO updateCliente(@PathVariable Long id, @RequestBody ClienteDTO dto) {
+        Cliente existente = clienteService.getClienteById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con id: " + id));
 
-                    Cliente actualizado = clienteService.createOrUpdateCliente(existingCliente);
-                    return ResponseEntity.ok(actualizado);
-                })
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        existente.setNombre(dto.getNombre());
+        existente.setApellido(dto.getApellido());
+        existente.setEmpresa(dto.getEmpresa());
+
+        return toDTO(clienteService.createOrUpdateCliente(existente));
     }
 
-    /**
-     * Elimina un cliente por su ID.
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCliente(@PathVariable Long id) {
-        if (clienteService.getClienteById(id).isPresent()) {
-            clienteService.deleteCliente(id);
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.notFound().build();
+        clienteService.getClienteById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con id: " + id));
+        clienteService.deleteCliente(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // =============================================
+    // Mapper privado: entidad → DTO
+    // =============================================
+    private ClienteResponseDTO toDTO(Cliente cliente) {
+        return new ClienteResponseDTO(
+                cliente.getId(),
+                cliente.getNombre(),
+                cliente.getApellido(),
+                cliente.getEmpresa()
+        );
     }
 }
