@@ -29,11 +29,16 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Rutas públicas
+                        // Rutas públicas
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/webhook/**").permitAll()
-                        .requestMatchers("/api/external/**").permitAll() // <-- ACCESO PARA n8n / BOT
-                        // 2. Seguridad del SaaS
+                        .requestMatchers("/api/external/**").permitAll()
+
+                        // Solo ADMIN puede gestionar configuración y caja
+                        .requestMatchers("/api/config/**").hasRole("ADMIN")
+                        .requestMatchers("/api/caja/**").hasRole("ADMIN")
+
+                        // ADMIN y OPERADOR pueden operar el resto
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(tenantFilter, UsernamePasswordAuthenticationFilter.class);

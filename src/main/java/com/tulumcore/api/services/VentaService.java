@@ -4,6 +4,8 @@ import com.tulumcore.api.controllers.VentaResumenDTO;
 import com.tulumcore.api.controllers.VentaDTO;
 import com.tulumcore.api.controllers.ItemVentaDTO;
 import com.tulumcore.api.entities.*;
+import com.tulumcore.api.exceptions.BusinessException;
+import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.*;
 import com.tulumcore.api.config.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +33,7 @@ public class VentaService {
     public Venta guardar(VentaDTO dto) {
         String tenant = TenantContext.getCurrentTenant();
         Caja caja = cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant)
-                .orElseThrow(() -> new RuntimeException("Debe abrir caja para realizar ventas."));
+                .orElseThrow(() -> new BusinessException("Debe abrir caja para realizar ventas."));
 
         Venta venta = new Venta();
         venta.setObservaciones(dto.getObservaciones());
@@ -47,11 +49,11 @@ public class VentaService {
         double subtotal = 0;
 
         for (ItemVentaDTO itemDto : dto.getItems()) {
-            Producto p = productoRepository.findById(itemDto.getProductoId())
-                    .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+            Producto p = productoRepository.findByIdAndTenantId(itemDto.getProductoId(), tenant)
+                    .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + itemDto.getProductoId()));
 
             if (p.getCantidadStock() < itemDto.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para: " + p.getNombre());
+                throw new BusinessException("Stock insuficiente para: " + p.getNombre());
             }
 
             p.setCantidadStock(p.getCantidadStock() - itemDto.getCantidad());
@@ -62,6 +64,7 @@ public class VentaService {
             item.setProducto(p);
             item.setCantidad(itemDto.getCantidad());
             item.setPrecioUnitario(p.getPrecio());
+            item.setTenantId(tenant);
             items.add(item);
             subtotal += p.getPrecio() * itemDto.getCantidad();
         }
@@ -88,16 +91,57 @@ public class VentaService {
         return ventaRepository.save(venta);
     }
 
-    public Page<Venta> buscarVentas(String tenantId, LocalDate desde, LocalDate hasta, String metodoPago, String estado, Pageable pageable) {
+    @Transactional
+    public Venta anularVenta(Long id) {
+        String tenant = TenantContext.getCurrentTenant();
+
+        Venta venta = ventaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada con id: " + id));
+
+        // Validamos que pertenece al tenant
+        if (!venta.getTenantId().equals(tenant)) {
+            throw new BusinessException("No tiene permisos para anular esta venta.");
+        }
+
+        if ("ANULADA".equals(venta.getEstado())) {
+            throw new BusinessException("La venta ya fue anulada anteriormente.");
+        }
+
+        // Devolvemos el stock de cada ítem
+        for (ItemVenta item : venta.getItems()) {
+            Producto producto = item.getProducto();
+            producto.setCantidadStock(producto.getCantidadStock() + item.getCantidad());
+            productoRepository.save(producto);
+        }
+
+        // Actualizamos la caja si está abierta
+        cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant).ifPresent(caja -> {
+            if ("EFECTIVO".equalsIgnoreCase(venta.getMetodoPago())) {
+                caja.setMontoVentasEfectivo(
+                        Math.max(0, caja.getMontoVentasEfectivo() - venta.getTotalFinal())
+                );
+                caja.setMontoFinalEsperado(caja.getMontoInicial() + caja.getMontoVentasEfectivo());
+            } else {
+                caja.setMontoVentasMP(
+                        Math.max(0, caja.getMontoVentasMP() - venta.getTotalFinal())
+                );
+            }
+            cajaRepository.save(caja);
+        });
+
+        venta.setEstado("ANULADA");
+        return ventaRepository.save(venta);
+    }
+
+    public Page<Venta> buscarVentas(String tenantId, LocalDate desde, LocalDate hasta,
+                                    String metodoPago, String estado, Pageable pageable) {
         return ventaRepository.findAll((Specification<Venta>) (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("tenantId"), tenantId));
-
             if (desde != null) predicates.add(cb.greaterThanOrEqualTo(root.get("fecha"), desde.atStartOfDay()));
             if (hasta != null) predicates.add(cb.lessThanOrEqualTo(root.get("fecha"), hasta.atTime(23, 59, 59)));
-            if (metodoPago != null) predicates.add(cb.equal(root.get("metodoPago"), metodoPago));
-            if (estado != null) predicates.add(cb.equal(root.get("estado"), estado));
-
+            if (metodoPago != null && !metodoPago.isEmpty()) predicates.add(cb.equal(root.get("metodoPago"), metodoPago));
+            if (estado != null && !estado.isEmpty()) predicates.add(cb.equal(root.get("estado"), estado));
             return cb.and(predicates.toArray(new Predicate[0]));
         }, pageable);
     }
@@ -112,10 +156,13 @@ public class VentaService {
 
         Map<LocalDate, VentaResumenDTO> resumenMap = new TreeMap<>();
         agrupadas.forEach((fecha, lista) -> {
-            double ef = lista.stream().filter(v -> "EFECTIVO".equalsIgnoreCase(v.getMetodoPago())).mapToDouble(Venta::getTotalFinal).sum();
-            double mp = lista.stream().filter(v -> "MERCADO_PAGO".equalsIgnoreCase(v.getMetodoPago())).mapToDouble(Venta::getTotalFinal).sum();
+            double ef = lista.stream().filter(v -> "EFECTIVO".equalsIgnoreCase(v.getMetodoPago()))
+                    .mapToDouble(Venta::getTotalFinal).sum();
+            double mp = lista.stream().filter(v -> "MERCADO_PAGO".equalsIgnoreCase(v.getMetodoPago()))
+                    .mapToDouble(Venta::getTotalFinal).sum();
             resumenMap.put(fecha, new VentaResumenDTO(fecha, ef, mp));
         });
+
         return new ArrayList<>(resumenMap.values());
     }
 }

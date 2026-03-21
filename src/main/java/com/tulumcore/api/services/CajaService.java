@@ -1,6 +1,8 @@
 package com.tulumcore.api.services;
 
 import com.tulumcore.api.entities.Caja;
+import com.tulumcore.api.exceptions.BusinessException;
+import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.CajaRepository;
 import com.tulumcore.api.config.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +24,6 @@ public class CajaService {
         return cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant);
     }
 
-    // --- NUEVO: Para la tabla de Auditoría ---
     public List<Caja> obtenerHistorial() {
         String tenant = TenantContext.getCurrentTenant();
         return cajaRepository.findAllByTenantIdOrderByFechaAperturaDesc(tenant);
@@ -31,8 +32,9 @@ public class CajaService {
     @Transactional
     public Caja abrirCaja(Double montoInicial) {
         String tenant = TenantContext.getCurrentTenant();
+
         if (obtenerCajaAbierta().isPresent()) {
-            throw new RuntimeException("Ya existe una caja abierta para este comercio.");
+            throw new BusinessException("Ya existe una caja abierta para este comercio.");
         }
 
         Caja nuevaCaja = new Caja();
@@ -50,13 +52,12 @@ public class CajaService {
     @Transactional
     public Caja cerrarCaja(Double montoFinalReal) {
         Caja caja = obtenerCajaAbierta()
-                .orElseThrow(() -> new RuntimeException("No hay una caja abierta para cerrar."));
+                .orElseThrow(() -> new ResourceNotFoundException("No hay una caja abierta para cerrar."));
 
         caja.setFechaCierre(LocalDateTime.now());
         caja.setMontoFinalReal(montoFinalReal);
         caja.setEstado("CERRADA");
 
-        // Nota: El Arqueo se calcula comparando montoFinalReal vs montoFinalEsperado
         return cajaRepository.save(caja);
     }
 }
