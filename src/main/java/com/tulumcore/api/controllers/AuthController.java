@@ -55,5 +55,4 @@ public class AuthController {
                 "email", usuario.getEmail()
         ));
     }
-
 }
