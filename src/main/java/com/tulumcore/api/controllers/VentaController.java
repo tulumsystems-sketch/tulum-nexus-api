@@ -1,7 +1,5 @@
 package com.tulumcore.api.controllers;
 
-import com.tulumcore.api.controllers.VentaDTO;
-import com.tulumcore.api.controllers.VentaResumenDTO;
 import com.tulumcore.api.entities.Venta;
 import com.tulumcore.api.services.VentaService;
 import com.tulumcore.api.config.TenantContext;
@@ -23,11 +21,19 @@ public class VentaController {
 
     @PostMapping
     public ResponseEntity<?> crearVenta(@RequestBody VentaDTO dto) {
-        try {
-            return ResponseEntity.ok(ventaService.guardar(dto));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        return ResponseEntity.ok(ventaService.guardar(dto));
+    }
+
+    // ← Este endpoint faltaba — el Dashboard lo usa para el historial
+    @GetMapping
+    public ResponseEntity<List<Venta>> getAllVentas() {
+        String tenant = TenantContext.getCurrentTenant();
+        return ResponseEntity.ok(ventaService.getAllVentas(tenant));
+    }
+
+    @PutMapping("/{id}/anular")
+    public ResponseEntity<Venta> anularVenta(@PathVariable Long id) {
+        return ResponseEntity.ok(ventaService.anularVenta(id));
     }
 
     @GetMapping("/search")
