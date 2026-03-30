@@ -4,6 +4,7 @@ import com.tulumcore.api.security.TenantFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -35,7 +36,14 @@ public class SecurityConfig {
                         .requestMatchers("/api/external/**").permitAll()
 
                         // Solo ADMIN puede gestionar configuración y caja
-                        .requestMatchers("/api/config/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/config/**")
+                            .hasAnyRole("ADMIN", "OPERADOR")
+                        .requestMatchers("/api/config/**")
+                            .hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/caja/estado").hasAnyRole("ADMIN", "OPERADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/caja/apertura").hasAnyRole("ADMIN", "OPERADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/caja/cierre").hasAnyRole("ADMIN", "OPERADOR")
+
                         .requestMatchers("/api/caja/**").hasRole("ADMIN")
 
                         // ADMIN y OPERADOR pueden operar el resto
