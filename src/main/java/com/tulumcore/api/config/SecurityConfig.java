@@ -15,6 +15,12 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -26,7 +32,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(Customizer.withDefaults())
+                .cors(Customizer.withDefaults()) // Esto busca el bean corsConfigurationSource
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -37,9 +43,9 @@ public class SecurityConfig {
 
                         // Solo ADMIN puede gestionar configuración y caja
                         .requestMatchers(HttpMethod.GET, "/api/config/**")
-                            .hasAnyRole("ADMIN", "OPERADOR")
+                        .hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers("/api/config/**")
-                            .hasRole("ADMIN")
+                        .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/caja/estado").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers(HttpMethod.POST, "/api/caja/apertura").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers(HttpMethod.POST, "/api/caja/cierre").hasAnyRole("ADMIN", "OPERADOR")
@@ -52,6 +58,38 @@ public class SecurityConfig {
                 .addFilterBefore(tenantFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // Dominios permitidos
+        configuration.setAllowedOrigins(Arrays.asList(
+                "https://tulum-core.netlify.app",
+                "http://localhost:3000",
+                "http://localhost:5173" // Por si usas Vite en local
+        ));
+
+        // Métodos HTTP permitidos
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+
+        // Headers permitidos (Importante incluir X-Tenant-ID si tu Front lo envía)
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "Accept",
+                "Origin",
+                "X-Tenant-ID"
+        ));
+
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // Caché de la respuesta preflight por 1 hora
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
     @Bean
