@@ -67,8 +67,9 @@ public class SecurityConfig {
         // Dominios permitidos
         configuration.setAllowedOrigins(Arrays.asList(
                 "https://tulum-core.netlify.app",
+                "https://teal-tanuki-dea827.netlify.app",
                 "http://localhost:3000",
-                "http://localhost:5173" // Por si usas Vite en local
+                "http://localhost:5173"
         ));
 
         // Métodos HTTP permitidos
