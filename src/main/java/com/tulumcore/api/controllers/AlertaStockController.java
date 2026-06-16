@@ -40,6 +40,7 @@ public class AlertaStockController {
                             p.getDescripcion(),
                             p.getPrecio(),
                             p.getCantidadStock(),
+                            p.getStockMinimo(),
                             p.getMedidas(),
                             p.getImageUrl(),
                             cat

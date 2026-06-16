@@ -43,6 +43,8 @@ public class TenantConfigController {
         config.setMpAceptarCredito(dto.isMpAceptarCredito());
         config.setMpAceptarDebito(dto.isMpAceptarDebito());
         config.setMpAceptarEfectivo(dto.isMpAceptarEfectivo());
+        config.setClientesHabilitado(dto.isClientesHabilitado());
+        config.setRemitosHabilitado(dto.isRemitosHabilitado());
 
         return configRepository.save(config);
     }

@@ -1,6 +1,10 @@
 package com.tulumcore.api.controllers;
 
+import com.tulumcore.api.config.TenantContext;
+import com.tulumcore.api.entities.Rol;
+import com.tulumcore.api.entities.TenantConfig;
 import com.tulumcore.api.entities.Usuario;
+import com.tulumcore.api.repositories.TenantConfigRepository;
 import com.tulumcore.api.repositories.UsuarioRepository;
 import com.tulumcore.api.security.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,8 +34,61 @@ public class AuthController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private TenantConfigRepository tenantConfigRepository;
+
     public AuthController(AuthenticationManager authenticationManager) {
         this.authenticationManager = authenticationManager;
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody RegisterRequestDTO req) {
+        if (req.tenant() == null || req.tenant().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "El campo tenant es obligatorio"));
+        }
+        if (req.email() == null || req.email().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "El campo email es obligatorio"));
+        }
+        if (req.password() == null || req.password().length() < 6) {
+            return ResponseEntity.badRequest().body(Map.of("error", "La contraseña debe tener al menos 6 caracteres"));
+        }
+
+        if (usuarioRepository.findByEmail(req.email()).isPresent()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Ya existe un usuario con ese email"));
+        }
+
+        try {
+            TenantContext.setCurrentTenant(req.tenant());
+
+            Usuario usuario = new Usuario();
+            usuario.setEmail(req.email());
+            usuario.setPassword(passwordEncoder.encode(req.password()));
+            usuario.setRol(Rol.ADMIN);
+            usuario.setTenantId(req.tenant());
+            usuarioRepository.save(usuario);
+
+            TenantConfig config = new TenantConfig();
+            config.setNombreEmpresa(req.companyName() != null ? req.companyName() : req.tenant());
+            config.setMpAceptarEfectivo(true);
+            config.setMpAceptarCredito(false);
+            config.setMpAceptarDebito(false);
+            config.setTenantId(req.tenant());
+            tenantConfigRepository.save(config);
+
+            String jwt = jwtService.generateToken(req.email(), req.tenant(), Rol.ADMIN.name());
+
+            return ResponseEntity.ok(Map.of(
+                "token", jwt,
+                "rol", Rol.ADMIN.name(),
+                "email", req.email(),
+                "tenant", req.tenant()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error al registrar: " + e.getMessage()));
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     @PostMapping("/login")

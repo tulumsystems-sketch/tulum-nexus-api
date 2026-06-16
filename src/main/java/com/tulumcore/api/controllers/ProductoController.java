@@ -44,6 +44,7 @@ public class ProductoController {
         producto.setDescripcion(dto.getDescripcion());
         producto.setPrecio(dto.getPrecio());
         producto.setCantidadStock(dto.getCantidadStock());
+        producto.setStockMinimo(dto.getStockMinimo());
         producto.setMedidas(dto.getMedidas());
         producto.setImageUrl(dto.getImageUrl());
         producto.setCategoria(categoria);
@@ -60,6 +61,7 @@ public class ProductoController {
         existente.setDescripcion(dto.getDescripcion());
         existente.setPrecio(dto.getPrecio());
         existente.setCantidadStock(dto.getCantidadStock());
+        existente.setStockMinimo(dto.getStockMinimo());
         existente.setMedidas(dto.getMedidas());
 
         if (dto.getImageUrl() != null) {
@@ -100,6 +102,7 @@ public class ProductoController {
                 p.getDescripcion(),
                 p.getPrecio(),
                 p.getCantidadStock(),
+                p.getStockMinimo(),
                 p.getMedidas(),
                 p.getImageUrl(),
                 categoriaDTO
