@@ -10,6 +10,7 @@ public record ProductoResponseDTO(
         String descripcion,
         Double precio,
         Integer cantidadStock,
+        Integer stockMinimo,
         String medidas,
         String imageUrl,
         CategoriaDTO categoria

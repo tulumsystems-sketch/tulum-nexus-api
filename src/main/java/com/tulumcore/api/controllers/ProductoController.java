@@ -1,11 +1,14 @@
 package com.tulumcore.api.controllers;
 
 import com.tulumcore.api.entities.Categoria;
+import com.tulumcore.api.entities.MovementType;
 import com.tulumcore.api.entities.Producto;
+import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.services.CategoriaService;
 import com.tulumcore.api.services.ProductoService;
+import com.tulumcore.api.services.StockMovementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +24,9 @@ public class ProductoController {
 
     @Autowired
     private CategoriaService categoriaService;
+
+    @Autowired
+    private StockMovementService stockMovementService;
 
     @GetMapping
     public List<ProductoResponseDTO> getAllProductos() {
@@ -44,11 +50,20 @@ public class ProductoController {
         producto.setDescripcion(dto.getDescripcion());
         producto.setPrecio(dto.getPrecio());
         producto.setCantidadStock(dto.getCantidadStock());
+        producto.setStockMinimo(dto.getStockMinimo());
         producto.setMedidas(dto.getMedidas());
         producto.setImageUrl(dto.getImageUrl());
         producto.setCategoria(categoria);
 
-        return ResponseEntity.ok(toDTO(productoService.createOrUpdateProducto(producto)));
+        Producto saved = productoService.createOrUpdateProducto(producto);
+
+        if (saved.getCantidadStock() != null && saved.getCantidadStock() > 0) {
+            Usuario usuario = stockMovementService.getCurrentUser();
+            stockMovementService.registrar(MovementType.AJUSTE, saved, usuario,
+                    saved.getCantidadStock(), "Stock inicial al crear producto", null, null);
+        }
+
+        return ResponseEntity.ok(toDTO(saved));
     }
 
     @PutMapping("/{id}")
@@ -60,6 +75,7 @@ public class ProductoController {
         existente.setDescripcion(dto.getDescripcion());
         existente.setPrecio(dto.getPrecio());
         existente.setCantidadStock(dto.getCantidadStock());
+        existente.setStockMinimo(dto.getStockMinimo());
         existente.setMedidas(dto.getMedidas());
 
         if (dto.getImageUrl() != null) {
@@ -100,6 +116,7 @@ public class ProductoController {
                 p.getDescripcion(),
                 p.getPrecio(),
                 p.getCantidadStock(),
+                p.getStockMinimo(),
                 p.getMedidas(),
                 p.getImageUrl(),
                 categoriaDTO

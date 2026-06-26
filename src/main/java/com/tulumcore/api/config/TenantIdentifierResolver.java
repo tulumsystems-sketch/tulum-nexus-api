@@ -13,8 +13,8 @@ public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver
             return tenantId;
         }
         // Fallback obligatorio para que Spring Boot pueda arrancar
-        // y para endpoints públicos que no requieren login.
-        return "DEFAULT_TENANT";
+        // y para endpoints públicos (login, register, webhook) que no requieren tenant.
+        return "public";
     }
 
     @Override

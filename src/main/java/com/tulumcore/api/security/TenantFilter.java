@@ -29,7 +29,11 @@ public class TenantFilter extends OncePerRequestFilter {
 
         // 1. BYPASS DE CORS
         if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
-            filterChain.doFilter(request, response);
+            response.setHeader("Access-Control-Allow-Origin", request.getHeader("Origin"));
+            response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+            response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Tenant-ID, Origin, Accept");
+            response.setHeader("Access-Control-Allow-Credentials", "true");
+            response.setStatus(HttpServletResponse.SC_OK);
             return;
         }
 

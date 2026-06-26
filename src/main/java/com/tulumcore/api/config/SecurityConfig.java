@@ -37,22 +37,30 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Rutas públicas
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/webhook/**").permitAll()
                         .requestMatchers("/api/external/**").permitAll()
 
-                        // Solo ADMIN puede gestionar configuración y caja
+                        // Config: ADMIN, OPERADOR y SUPER_ADMIN pueden leer
                         .requestMatchers(HttpMethod.GET, "/api/config/**")
-                        .hasAnyRole("ADMIN", "OPERADOR")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        // Config: escribir solo ADMIN y SUPER_ADMIN
                         .requestMatchers("/api/config/**")
-                        .hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/caja/estado").hasAnyRole("ADMIN", "OPERADOR")
-                        .requestMatchers(HttpMethod.POST, "/api/caja/apertura").hasAnyRole("ADMIN", "OPERADOR")
-                        .requestMatchers(HttpMethod.POST, "/api/caja/cierre").hasAnyRole("ADMIN", "OPERADOR")
-
-                        .requestMatchers("/api/caja/**").hasRole("ADMIN")
-
-                        // ADMIN y OPERADOR pueden operar el resto
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Caja: estado, apertura, cierre para ADMIN, OPERADOR, SUPER_ADMIN
+                        .requestMatchers(HttpMethod.GET, "/api/caja/estado")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/caja/apertura")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/caja/cierre")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        // Caja: historial y demás para ADMIN y SUPER_ADMIN
+                        .requestMatchers("/api/caja/**")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Admin solo SUPER_ADMIN
+                        .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
+                        // Todo lo demás requiere autenticación
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(tenantFilter, UsernamePasswordAuthenticationFilter.class);
@@ -67,8 +75,9 @@ public class SecurityConfig {
         // Dominios permitidos
         configuration.setAllowedOrigins(Arrays.asList(
                 "https://tulum-core.netlify.app",
+                "https://teal-tanuki-dea827.netlify.app",
                 "http://localhost:3000",
-                "http://localhost:5173" // Por si usas Vite en local
+                "http://localhost:5173"
         ));
 
         // Métodos HTTP permitidos
