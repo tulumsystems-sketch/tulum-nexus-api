@@ -79,7 +79,7 @@ public class CompraService {
         auditoryLogService.registrar("CREATE", "COMPRA", saved.getId(),
                 "Orden de compra creada - Proveedor: " + proveedor.getNombre() +
                 " - $" + String.format("%.2f", total),
-                null, null);
+                null, detalleCompra(saved));
 
         return saved;
     }
@@ -96,6 +96,7 @@ public class CompraService {
         }
 
         Usuario usuario = stockMovementService.getCurrentUser();
+        String detalleAnterior = detalleCompra(compra);
 
         for (ItemCompra item : compra.getItems()) {
             stockMovementService.registrar(
@@ -115,7 +116,7 @@ public class CompraService {
         auditoryLogService.registrar("UPDATE", "COMPRA", saved.getId(),
                 "Orden de compra recibida - Proveedor: " +
                 (compra.getProveedor() != null ? compra.getProveedor().getNombre() : "N/A"),
-                null, null);
+                detalleAnterior, detalleCompra(saved));
 
         return saved;
     }
@@ -124,6 +125,19 @@ public class CompraService {
         String tenant = TenantContext.getCurrentTenant();
         Compra compra = compraRepository.findByIdAndTenantId(id, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("Compra no encontrada con id: " + id));
+        String detalleAnterior = detalleCompra(compra);
         compraRepository.delete(compra);
+        auditoryLogService.registrar("DELETE", "COMPRA", id,
+                "Orden de compra eliminada", detalleAnterior, null);
+    }
+
+    private String detalleCompra(Compra compra) {
+        return auditoryLogService.detalle(
+                "estado", compra.getEstado(),
+                "proveedor", compra.getProveedor() != null ? compra.getProveedor().getNombre() : null,
+                "nroFactura", compra.getNroFactura(),
+                "total", compra.getTotal(),
+                "items", compra.getItems() != null ? compra.getItems().size() : 0
+        );
     }
 }

@@ -29,10 +29,33 @@ public class AuditoryLogService {
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + email));
     }
 
+    public String detalle(Object... campos) {
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i + 1 < campos.length; i += 2) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append("\"").append(escape(campos[i])).append("\": ");
+            Object valor = campos[i + 1];
+            if (valor instanceof Number || valor instanceof Boolean) {
+                sb.append(valor);
+            } else {
+                sb.append("\"").append(escape(valor)).append("\"");
+            }
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
     @Transactional
     public AuditoryLog registrar(String accion, String entidad, Long entidadId,
                                   String descripcion, String detalleAnterior, String detalleNuevo) {
-        Usuario usuario = getCurrentUser();
+        Usuario usuario = null;
+        try {
+            usuario = getCurrentUser();
+        } catch (RuntimeException ignored) {
+            // Algunos flujos externos usan una identidad tecnica sin Usuario persistido.
+        }
         AuditoryLog log = new AuditoryLog();
         log.setAccion(accion);
         log.setEntidad(entidad);
@@ -44,6 +67,15 @@ public class AuditoryLogService {
         log.setFecha(LocalDateTime.now());
         log.setTenantId(TenantContext.getCurrentTenant());
         return repository.save(log);
+    }
+
+    private String escape(Object value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toString()
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"");
     }
 
     public List<AuditoryLog> listar() {

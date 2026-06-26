@@ -14,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class RemitoService {
@@ -78,8 +80,8 @@ public class RemitoService {
         Remito saved = remitoRepository.save(remito);
         auditoryLogService.registrar("CREATE", "REMITO", saved.getId(),
                 "Remito #" + saved.getNroRemito() + " creado - " +
-                (saved.getNombreDestinatario() != null ? saved.getNombreDestinatario() : "Sin destinatario"),
-                null, null);
+                        (saved.getNombreDestinatario() != null ? saved.getNombreDestinatario() : "Sin destinatario"),
+                null, detalleRemito(saved));
         return saved;
     }
 
@@ -89,7 +91,7 @@ public class RemitoService {
 
         List<String> estadosValidos = List.of("PENDIENTE", "EN_VIAJE", "ENTREGADO", "INCIDENCIA");
         if (!estadosValidos.contains(nuevoEstado)) {
-            throw new BusinessException("Estado inválido: " + nuevoEstado);
+            throw new BusinessException("Estado invalido: " + nuevoEstado);
         }
 
         Remito remito = remitoRepository.findByIdAndTenantId(id, tenant)
@@ -99,19 +101,25 @@ public class RemitoService {
             throw new BusinessException("Un remito entregado no puede cambiar de estado.");
         }
 
+        if ("ENTREGADO".equals(nuevoEstado)) {
+            validarStockParaEntrega(remito);
+        }
+
         String estadoAnterior = remito.getEstado();
+        String detalleAnterior = detalleRemito(remito);
         remito.setEstado(nuevoEstado);
         Remito saved = remitoRepository.save(remito);
+
         auditoryLogService.registrar("UPDATE", "REMITO", saved.getId(),
-                "Remito #" + saved.getNroRemito() + " cambió de " + estadoAnterior + " → " + nuevoEstado,
-                null, null);
+                "Remito #" + saved.getNroRemito() + " cambio de " + estadoAnterior + " a " + nuevoEstado,
+                detalleAnterior, detalleRemito(saved));
 
         if ("ENTREGADO".equals(nuevoEstado)) {
             Usuario usuario = stockMovementService.getCurrentUser();
             for (ItemRemito item : saved.getItems()) {
                 if (item.getProducto() != null) {
                     stockMovementService.registrar(MovementType.TRANSFERENCIA, item.getProducto(), usuario,
-                            item.getCantidad(), "Remito #" + saved.getNroRemito(), null, null);
+                            item.getCantidad(), "Remito #" + saved.getNroRemito(), null, null, saved);
                 }
             }
         }
@@ -123,5 +131,45 @@ public class RemitoService {
         String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         long count = remitoRepository.count() + 1;
         return "R-" + fecha + "-" + String.format("%04d", count);
+    }
+
+    private void validarStockParaEntrega(Remito remito) {
+        Map<Long, Integer> cantidadesPorProducto = new HashMap<>();
+        Map<Long, Producto> productos = new HashMap<>();
+
+        for (ItemRemito item : remito.getItems()) {
+            Producto producto = item.getProducto();
+            if (producto == null) {
+                continue;
+            }
+
+            int cantidad = item.getCantidad() != null ? item.getCantidad() : 0;
+            if (cantidad <= 0) {
+                throw new BusinessException("La cantidad del remito debe ser mayor a cero para " + producto.getNombre() + ".");
+            }
+
+            cantidadesPorProducto.merge(producto.getId(), cantidad, Integer::sum);
+            productos.put(producto.getId(), producto);
+        }
+
+        for (Map.Entry<Long, Integer> entry : cantidadesPorProducto.entrySet()) {
+            Producto producto = productos.get(entry.getKey());
+            int disponible = producto.getCantidadStock() != null ? producto.getCantidadStock() : 0;
+            int requerido = entry.getValue();
+            if (disponible < requerido) {
+                throw new BusinessException("Stock insuficiente para entregar remito. Producto: "
+                        + producto.getNombre() + ". Disponible: " + disponible + ", requerido: " + requerido + ".");
+            }
+        }
+    }
+
+    private String detalleRemito(Remito remito) {
+        return auditoryLogService.detalle(
+                "nroRemito", remito.getNroRemito(),
+                "estado", remito.getEstado(),
+                "destinatario", remito.getNombreDestinatario(),
+                "direccionEntrega", remito.getDireccionEntrega(),
+                "items", remito.getItems() != null ? remito.getItems().size() : 0
+        );
     }
 }

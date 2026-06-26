@@ -49,7 +49,8 @@ public class ProductoController {
         producto.setNombre(dto.getNombre());
         producto.setDescripcion(dto.getDescripcion());
         producto.setPrecio(dto.getPrecio());
-        producto.setCantidadStock(dto.getCantidadStock());
+        Integer stockInicial = dto.getCantidadStock() != null ? dto.getCantidadStock() : 0;
+        producto.setCantidadStock(0);
         producto.setStockMinimo(dto.getStockMinimo());
         producto.setMedidas(dto.getMedidas());
         producto.setImageUrl(dto.getImageUrl());
@@ -57,10 +58,10 @@ public class ProductoController {
 
         Producto saved = productoService.createOrUpdateProducto(producto);
 
-        if (saved.getCantidadStock() != null && saved.getCantidadStock() > 0) {
+        if (stockInicial > 0) {
             Usuario usuario = stockMovementService.getCurrentUser();
             stockMovementService.registrar(MovementType.AJUSTE, saved, usuario,
-                    saved.getCantidadStock(), "Stock inicial al crear producto", null, null);
+                    stockInicial, "Stock inicial al crear producto", null, null);
         }
 
         return ResponseEntity.ok(toDTO(saved));

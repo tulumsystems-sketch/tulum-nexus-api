@@ -2,6 +2,8 @@ package com.tulumcore.api.services;
 
 import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.*;
+import com.tulumcore.api.exceptions.BusinessException;
+import com.tulumcore.api.repositories.ProductoRepository;
 import com.tulumcore.api.repositories.StockMovementRepository;
 import com.tulumcore.api.repositories.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,9 @@ public class StockMovementService {
 
     @Autowired
     private UsuarioRepository usuarioRepository;
+
+    @Autowired
+    private ProductoRepository productoRepository;
 
     public List<StockMovement> listar() {
         return repository.findAllByTenantIdOrderByFechaDesc(TenantContext.getCurrentTenant());
@@ -45,6 +50,15 @@ public class StockMovementService {
     public StockMovement registrar(
             MovementType tipo, Producto producto, Usuario usuario,
             Integer cantidad, String motivo, Venta venta, Compra compra) {
+        return registrar(tipo, producto, usuario, cantidad, motivo, venta, compra, null);
+    }
+
+    @Transactional
+    public StockMovement registrar(
+            MovementType tipo, Producto producto, Usuario usuario,
+            Integer cantidad, String motivo, Venta venta, Compra compra, Remito remito) {
+
+        validarMovimiento(tipo, producto, cantidad);
 
         StockMovement mov = new StockMovement();
         mov.setTipoMovimiento(tipo);
@@ -54,14 +68,43 @@ public class StockMovementService {
         mov.setMotivo(motivo);
         mov.setVenta(venta);
         mov.setCompra(compra);
+        mov.setRemito(remito);
         mov.setTenantId(TenantContext.getCurrentTenant());
 
-        if (tipo == MovementType.COMPRA || tipo == MovementType.AJUSTE) {
-            producto.setCantidadStock(producto.getCantidadStock() + cantidad);
-        } else {
-            producto.setCantidadStock(producto.getCantidadStock() - cantidad);
-        }
+        producto.setCantidadStock(calcularStockResultante(tipo, producto, cantidad));
+        Producto productoActualizado = productoRepository.save(producto);
+        mov.setProducto(productoActualizado);
 
         return repository.save(mov);
+    }
+
+    private void validarMovimiento(MovementType tipo, Producto producto, Integer cantidad) {
+        if (producto == null) {
+            throw new BusinessException("Producto requerido para registrar movimiento de stock.");
+        }
+        if (cantidad == null || cantidad == 0) {
+            throw new BusinessException("La cantidad del movimiento de stock debe ser distinta de cero.");
+        }
+        if (tipo != MovementType.AJUSTE && cantidad < 0) {
+            throw new BusinessException("La cantidad debe ser positiva para movimientos de tipo " + tipo + ".");
+        }
+
+        int stockResultante = calcularStockResultante(tipo, producto, cantidad);
+        if (stockResultante < 0) {
+            throw new BusinessException("Stock insuficiente para " + producto.getNombre()
+                    + ". Disponible: " + stockActual(producto) + ", requerido: " + cantidad + ".");
+        }
+    }
+
+    private int calcularStockResultante(MovementType tipo, Producto producto, Integer cantidad) {
+        int stockActual = stockActual(producto);
+        if (tipo == MovementType.COMPRA || tipo == MovementType.AJUSTE) {
+            return stockActual + cantidad;
+        }
+        return stockActual - cantidad;
+    }
+
+    private int stockActual(Producto producto) {
+        return producto.getCantidadStock() != null ? producto.getCantidadStock() : 0;
     }
 }

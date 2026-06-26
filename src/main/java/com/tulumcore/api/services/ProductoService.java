@@ -1,7 +1,6 @@
 package com.tulumcore.api.services;
 
 import com.tulumcore.api.config.TenantContext;
-import com.tulumcore.api.entities.AuditoryLog;
 import com.tulumcore.api.entities.MovementType;
 import com.tulumcore.api.entities.Producto;
 import com.tulumcore.api.entities.Usuario;
@@ -43,22 +42,29 @@ public class ProductoService {
 
     public Producto createOrUpdateProducto(Producto producto) {
         boolean isNew = producto.getId() == null;
-        Producto saved = productoRepository.save(producto);
-        if (isNew) {
-            auditoryLogService.registrar("CREATE", "PRODUCTO", saved.getId(),
-                    "Se creó el producto: " + saved.getNombre(), null, null);
-        } else {
-            auditoryLogService.registrar("UPDATE", "PRODUCTO", saved.getId(),
-                    "Se actualizó el producto: " + saved.getNombre(), null, null);
+        String tenant = TenantContext.getCurrentTenant();
+        producto.setTenantId(tenant);
+
+        String detalleAnterior = null;
+        if (!isNew) {
+            detalleAnterior = productoRepository.findByIdAndTenantId(producto.getId(), tenant)
+                    .map(this::detalleProducto)
+                    .orElse(null);
         }
+
+        Producto saved = productoRepository.save(producto);
+        auditoryLogService.registrar(isNew ? "CREATE" : "UPDATE", "PRODUCTO", saved.getId(),
+                (isNew ? "Producto creado: " : "Producto actualizado: ") + saved.getNombre(),
+                detalleAnterior, detalleProducto(saved));
         return saved;
     }
 
     public void deleteProducto(Long id) {
         getProductoById(id).ifPresent(p -> {
+            String detalleAnterior = detalleProducto(p);
             productoRepository.delete(p);
             auditoryLogService.registrar("DELETE", "PRODUCTO", id,
-                    "Se eliminó el producto: " + p.getNombre(), null, null);
+                    "Producto eliminado: " + p.getNombre(), detalleAnterior, null);
         });
     }
 
@@ -78,5 +84,16 @@ public class ProductoService {
                 .sorted((a, b) -> b.getId().compareTo(a.getId()))
                 .limit(limit)
                 .toList();
+    }
+
+    private String detalleProducto(Producto producto) {
+        return auditoryLogService.detalle(
+                "nombre", producto.getNombre(),
+                "precio", producto.getPrecio(),
+                "stock", producto.getCantidadStock(),
+                "stockMinimo", producto.getStockMinimo(),
+                "medidas", producto.getMedidas(),
+                "categoriaId", producto.getCategoria() != null ? producto.getCategoria().getId() : null
+        );
     }
 }

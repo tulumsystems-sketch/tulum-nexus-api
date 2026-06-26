@@ -37,6 +37,10 @@ public class StockMovement extends BaseEntity {
     @JoinColumn(name = "compra_id")
     private Compra compra;
 
+    @ManyToOne
+    @JoinColumn(name = "remito_id")
+    private Remito remito;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public MovementType getTipoMovimiento() { return tipoMovimiento; }
@@ -55,4 +59,6 @@ public class StockMovement extends BaseEntity {
     public void setVenta(Venta venta) { this.venta = venta; }
     public Compra getCompra() { return compra; }
     public void setCompra(Compra compra) { this.compra = compra; }
+    public Remito getRemito() { return remito; }
+    public void setRemito(Remito remito) { this.remito = remito; }
 }

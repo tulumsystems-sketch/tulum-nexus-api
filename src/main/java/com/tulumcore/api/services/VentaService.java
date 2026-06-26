@@ -1,13 +1,14 @@
 package com.tulumcore.api.services;
 
-import com.tulumcore.api.controllers.VentaResumenDTO;
-import com.tulumcore.api.controllers.VentaDTO;
+import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.controllers.ItemVentaDTO;
+import com.tulumcore.api.controllers.VentaDTO;
+import com.tulumcore.api.controllers.VentaResumenDTO;
 import com.tulumcore.api.entities.*;
 import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.*;
-import com.tulumcore.api.config.TenantContext;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,7 +16,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -48,6 +48,7 @@ public class VentaService {
         }
 
         List<ItemVenta> items = new ArrayList<>();
+        Map<Long, Integer> cantidadesPorProducto = new HashMap<>();
         double subtotal = 0;
 
         Usuario usuario = stockMovementService.getCurrentUser();
@@ -56,18 +57,26 @@ public class VentaService {
             Producto p = productoRepository.findByIdAndTenantId(itemDto.getProductoId(), tenant)
                     .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + itemDto.getProductoId()));
 
-            if (p.getCantidadStock() < itemDto.getCantidad()) {
-                throw new BusinessException("Stock insuficiente para: " + p.getNombre());
+            int cantidad = itemDto.getCantidad() != null ? itemDto.getCantidad() : 0;
+            if (cantidad <= 0) {
+                throw new BusinessException("La cantidad vendida debe ser mayor a cero para: " + p.getNombre());
+            }
+
+            int cantidadAcumulada = cantidadesPorProducto.merge(p.getId(), cantidad, Integer::sum);
+            int stockDisponible = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
+            if (stockDisponible < cantidadAcumulada) {
+                throw new BusinessException("Stock insuficiente para: " + p.getNombre()
+                        + ". Disponible: " + stockDisponible + ", requerido: " + cantidadAcumulada + ".");
             }
 
             ItemVenta item = new ItemVenta();
             item.setVenta(venta);
             item.setProducto(p);
-            item.setCantidad(itemDto.getCantidad());
+            item.setCantidad(cantidad);
             item.setPrecioUnitario(p.getPrecio());
             item.setTenantId(tenant);
             items.add(item);
-            subtotal += p.getPrecio() * itemDto.getCantidad();
+            subtotal += p.getPrecio() * cantidad;
         }
 
         venta.setItems(items);
@@ -102,8 +111,8 @@ public class VentaService {
                 : "Consumidor Final";
         auditoryLogService.registrar("CREATE", "VENTA", saved.getId(),
                 "Venta #" + saved.getId() + " - " + clienteNombre + " - $" +
-                String.format("%.2f", saved.getTotalFinal()) + " (" + saved.getMetodoPago() + ")",
-                null, null);
+                        String.format("%.2f", saved.getTotalFinal()) + " (" + saved.getMetodoPago() + ")",
+                null, detalleVenta(saved));
 
         return saved;
     }
@@ -120,23 +129,19 @@ public class VentaService {
         }
 
         Usuario usuario = stockMovementService.getCurrentUser();
+        String detalleAnterior = detalleVenta(venta);
 
         for (ItemVenta item : venta.getItems()) {
             stockMovementService.registrar(MovementType.AJUSTE, item.getProducto(), usuario,
-                    item.getCantidad(), "Devolución por anulación de venta #" + venta.getId(), null, null);
+                    item.getCantidad(), "Devolucion por anulacion de venta #" + venta.getId(), venta, null);
         }
 
-        // Actualizamos la caja si está abierta
         cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant).ifPresent(caja -> {
             if ("EFECTIVO".equalsIgnoreCase(venta.getMetodoPago())) {
-                caja.setMontoVentasEfectivo(
-                        Math.max(0, caja.getMontoVentasEfectivo() - venta.getTotalFinal())
-                );
+                caja.setMontoVentasEfectivo(Math.max(0, caja.getMontoVentasEfectivo() - venta.getTotalFinal()));
                 caja.setMontoFinalEsperado(caja.getMontoInicial() + caja.getMontoVentasEfectivo());
             } else {
-                caja.setMontoVentasMP(
-                        Math.max(0, caja.getMontoVentasMP() - venta.getTotalFinal())
-                );
+                caja.setMontoVentasMP(Math.max(0, caja.getMontoVentasMP() - venta.getTotalFinal()));
             }
             cajaRepository.save(caja);
         });
@@ -147,7 +152,7 @@ public class VentaService {
                 ? saved.getCliente().getNombre() + " " + saved.getCliente().getApellido()
                 : "Consumidor Final";
         auditoryLogService.registrar("UPDATE", "VENTA", saved.getId(),
-                "Venta #" + saved.getId() + " anulada - " + clienteNombre, null, null);
+                "Venta #" + saved.getId() + " anulada - " + clienteNombre, detalleAnterior, detalleVenta(saved));
         return saved;
     }
 
@@ -186,5 +191,16 @@ public class VentaService {
         });
 
         return new ArrayList<>(resumenMap.values());
+    }
+
+    private String detalleVenta(Venta venta) {
+        return auditoryLogService.detalle(
+                "estado", venta.getEstado(),
+                "metodoPago", venta.getMetodoPago(),
+                "totalFinal", venta.getTotalFinal(),
+                "montoAbonado", venta.getMontoAbonado(),
+                "vuelto", venta.getVuelto(),
+                "items", venta.getItems() != null ? venta.getItems().size() : 0
+        );
     }
 }
