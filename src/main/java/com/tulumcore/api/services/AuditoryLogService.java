@@ -24,7 +24,8 @@ public class AuditoryLogService {
 
     public Usuario getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return usuarioRepository.findByEmail(email)
+        String tenant = TenantContext.getCurrentTenant();
+        return usuarioRepository.findByEmailAndTenantId(email, tenant)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + email));
     }
 

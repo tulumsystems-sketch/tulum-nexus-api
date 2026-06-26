@@ -43,9 +43,10 @@ public class WebhookController {
             String paymentId = String.valueOf(((Map<?, ?>) dataObj).get("id"));
 
             // Configuramos el token del tenant
+            TenantContext.setCurrentTenant(tenant);
             TenantConfig config = tenantConfigRepository.findByTenantId(tenant)
                     .orElse(null);
-            if (config == null || config.getMpAccessToken() == null) {
+            if (config == null || !config.isActivo() || config.getMpAccessToken() == null) {
                 return ResponseEntity.ok().build();
             }
 
@@ -61,8 +62,7 @@ public class WebhookController {
             if (externalRef == null) return ResponseEntity.ok().build();
 
             // Buscamos la venta por external_reference (es el ID de venta)
-            TenantContext.setCurrentTenant(tenant);
-            ventaRepository.findById(Long.parseLong(externalRef)).ifPresent(venta -> {
+            ventaRepository.findByIdAndTenantId(Long.parseLong(externalRef), tenant).ifPresent(venta -> {
                 if ("approved".equals(status)) {
                     venta.setEstado("PAGADA");
                 } else if ("rejected".equals(status) || "cancelled".equals(status)) {

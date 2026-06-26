@@ -7,9 +7,11 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecificationExecutor<Venta> {
     List<Venta> findByTenantId(String currentTenant);
     List<Venta> findByTenantIdAndFechaAfter(String tenantId, LocalDateTime desde);
+    Optional<Venta> findByIdAndTenantId(Long id, String tenantId);
 }

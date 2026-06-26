@@ -56,7 +56,7 @@ public class AuthController {
         try {
             TenantContext.setCurrentTenant(req.tenant());
 
-            if (usuarioRepository.findByEmail(req.email()).isPresent()) {
+            if (usuarioRepository.findByEmailAndTenantId(req.email(), req.tenant()).isPresent()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Ya existe un usuario con ese email"));
             }
 
@@ -108,7 +108,7 @@ public class AuthController {
             );
 
             // 4. Buscar el usuario
-            Usuario usuario = usuarioRepository.findByEmail(loginRequest.email())
+            Usuario usuario = usuarioRepository.findByEmailAndTenantId(loginRequest.email(), loginRequest.tenant())
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
             // 5. Generar Token

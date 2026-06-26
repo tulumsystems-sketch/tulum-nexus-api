@@ -56,7 +56,7 @@ public class ProductoService {
 
     public void deleteProducto(Long id) {
         getProductoById(id).ifPresent(p -> {
-            productoRepository.deleteById(id);
+            productoRepository.delete(p);
             auditoryLogService.registrar("DELETE", "PRODUCTO", id,
                     "Se eliminó el producto: " + p.getNombre(), null, null);
         });

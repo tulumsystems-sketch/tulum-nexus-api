@@ -29,6 +29,6 @@ public class ProveedorService {
     }
 
     public void delete(Long id) {
-        getById(id).ifPresent(p -> repository.deleteById(id));
+        getById(id).ifPresent(p -> repository.delete(p));
     }
 }

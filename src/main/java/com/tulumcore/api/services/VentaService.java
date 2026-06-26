@@ -44,7 +44,7 @@ public class VentaService {
         venta.setTenantId(tenant);
 
         if (dto.getClienteId() != null && dto.getClienteId() > 0) {
-            venta.setCliente(clienteRepository.findById(dto.getClienteId()).orElse(null));
+            venta.setCliente(clienteRepository.findByIdAndTenantId(dto.getClienteId(), tenant).orElse(null));
         }
 
         List<ItemVenta> items = new ArrayList<>();
@@ -112,13 +112,8 @@ public class VentaService {
     public Venta anularVenta(Long id) {
         String tenant = TenantContext.getCurrentTenant();
 
-        Venta venta = ventaRepository.findById(id)
+        Venta venta = ventaRepository.findByIdAndTenantId(id, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada con id: " + id));
-
-        // Validamos que pertenece al tenant
-        if (!venta.getTenantId().equals(tenant)) {
-            throw new BusinessException("No tiene permisos para anular esta venta.");
-        }
 
         if ("ANULADA".equals(venta.getEstado())) {
             throw new BusinessException("La venta ya fue anulada anteriormente.");

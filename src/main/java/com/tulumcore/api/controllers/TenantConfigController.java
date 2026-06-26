@@ -28,6 +28,7 @@ public class TenantConfigController {
         // Buscamos si ya tiene configuración, si no, creamos una nueva
         TenantConfig config = configRepository.findByTenantId(tenant)
                 .orElse(new TenantConfig());
+        config.setTenantId(tenant);
 
         // Actualizamos los valores
         config.setNombreEmpresa(dto.getNombreEmpresa());

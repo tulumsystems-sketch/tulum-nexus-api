@@ -55,7 +55,7 @@ public class TulumCoreApplication {
             try {
                 TenantContext.setCurrentTenant(superAdminTenant);
 
-                var opt = repo.findByEmail(superAdminEmail);
+                var opt = repo.findByEmailAndTenantId(superAdminEmail, superAdminTenant);
                 if (opt.isEmpty()) {
                     Usuario u = new Usuario();
                     u.setEmail(superAdminEmail);

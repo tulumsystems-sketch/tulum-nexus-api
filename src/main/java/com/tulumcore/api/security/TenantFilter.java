@@ -1,6 +1,7 @@
 package com.tulumcore.api.security;
 
 import com.tulumcore.api.config.TenantContext;
+import com.tulumcore.api.repositories.TenantConfigRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,9 +24,14 @@ public class TenantFilter extends OncePerRequestFilter {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private TenantConfigRepository tenantConfigRepository;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        TenantContext.clear();
+        SecurityContextHolder.clearContext();
 
         // 1. BYPASS DE CORS
         if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
@@ -45,14 +51,24 @@ public class TenantFilter extends OncePerRequestFilter {
                 String tenantIdHeader = request.getHeader("X-Tenant-ID");
                 if (tenantIdHeader != null && !tenantIdHeader.isEmpty()) {
                     TenantContext.setCurrentTenant(tenantIdHeader);
+                }
+
+                boolean tenantValido = tenantIdHeader != null && !tenantIdHeader.isEmpty()
+                        && tenantConfigRepository.findByTenantId(tenantIdHeader)
+                        .filter(config -> config.isActivo())
+                        .isPresent();
+
+                if (tenantValido) {
                     UsernamePasswordAuthenticationToken systemAuth = new UsernamePasswordAuthenticationToken(
                             "SYSTEM_BOT", null, Collections.emptyList()
                     );
                     SecurityContextHolder.getContext().setAuthentication(systemAuth);
                 } else {
+                    TenantContext.clear();
+                    SecurityContextHolder.clearContext();
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                     response.setContentType("application/json");
-                    response.getWriter().write("{\"error\": \"X-Tenant-ID requerido para peticiones externas\"}");
+                    response.getWriter().write("{\"error\": \"X-Tenant-ID invalido para peticiones externas\"}");
                     return;
                 }
             }
@@ -61,6 +77,7 @@ public class TenantFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
             } finally {
                 TenantContext.clear();
+                SecurityContextHolder.clearContext();
             }
             return;
         }
@@ -106,6 +123,7 @@ public class TenantFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             TenantContext.clear();
+            SecurityContextHolder.clearContext();
         }
     }
 }
