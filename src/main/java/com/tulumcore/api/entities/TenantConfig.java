@@ -18,10 +18,21 @@ public class TenantConfig extends BaseEntity {
     private boolean clientesHabilitado = true;
     @Column(columnDefinition = "boolean default true")
     private boolean remitosHabilitado = true;
+    @Column(columnDefinition = "boolean default true")
+    private boolean comprasHabilitado = true;
+    @Column(columnDefinition = "boolean default true")
+    private boolean stockHabilitado = true;
+
+    // --- ESTADO ---
+    @Column(columnDefinition = "boolean default true")
+    private boolean activo = true;
 
     // --- CONFIGURACIÓN DE MEDIOS DE PAGO ---
-    private boolean mpAceptarCredito = false;
-    private boolean mpAceptarDebito = false;
+    @Column(columnDefinition = "boolean default true")
+    private boolean mpAceptarCredito = true;
+    @Column(columnDefinition = "boolean default true")
+    private boolean mpAceptarDebito = true;
+    @Column(columnDefinition = "boolean default true")
     private boolean mpAceptarEfectivo = true;
 
     public Long getId() { return id; }
@@ -42,4 +53,10 @@ public class TenantConfig extends BaseEntity {
     public void setClientesHabilitado(boolean clientesHabilitado) { this.clientesHabilitado = clientesHabilitado; }
     public boolean isRemitosHabilitado() { return remitosHabilitado; }
     public void setRemitosHabilitado(boolean remitosHabilitado) { this.remitosHabilitado = remitosHabilitado; }
+    public boolean isComprasHabilitado() { return comprasHabilitado; }
+    public void setComprasHabilitado(boolean comprasHabilitado) { this.comprasHabilitado = comprasHabilitado; }
+    public boolean isStockHabilitado() { return stockHabilitado; }
+    public void setStockHabilitado(boolean stockHabilitado) { this.stockHabilitado = stockHabilitado; }
+    public boolean isActivo() { return activo; }
+    public void setActivo(boolean activo) { this.activo = activo; }
 }

@@ -22,6 +22,8 @@ public class RemitoService {
     @Autowired private RemitoRepository remitoRepository;
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private ProductoRepository productoRepository;
+    @Autowired private StockMovementService stockMovementService;
+    @Autowired private AuditoryLogService auditoryLogService;
 
     public List<Remito> getAll() {
         String tenant = TenantContext.getCurrentTenant();
@@ -73,7 +75,12 @@ public class RemitoService {
         }
 
         remito.setItems(items);
-        return remitoRepository.save(remito);
+        Remito saved = remitoRepository.save(remito);
+        auditoryLogService.registrar("CREATE", "REMITO", saved.getId(),
+                "Remito #" + saved.getNroRemito() + " creado - " +
+                (saved.getNombreDestinatario() != null ? saved.getNombreDestinatario() : "Sin destinatario"),
+                null, null);
+        return saved;
     }
 
     @Transactional
@@ -92,8 +99,24 @@ public class RemitoService {
             throw new BusinessException("Un remito entregado no puede cambiar de estado.");
         }
 
+        String estadoAnterior = remito.getEstado();
         remito.setEstado(nuevoEstado);
-        return remitoRepository.save(remito);
+        Remito saved = remitoRepository.save(remito);
+        auditoryLogService.registrar("UPDATE", "REMITO", saved.getId(),
+                "Remito #" + saved.getNroRemito() + " cambió de " + estadoAnterior + " → " + nuevoEstado,
+                null, null);
+
+        if ("ENTREGADO".equals(nuevoEstado)) {
+            Usuario usuario = stockMovementService.getCurrentUser();
+            for (ItemRemito item : saved.getItems()) {
+                if (item.getProducto() != null) {
+                    stockMovementService.registrar(MovementType.TRANSFERENCIA, item.getProducto(), usuario,
+                            item.getCantidad(), "Remito #" + saved.getNroRemito(), null, null);
+                }
+            }
+        }
+
+        return saved;
     }
 
     private String generarNroRemito() {

@@ -28,6 +28,8 @@ public class VentaService {
     @Autowired private ProductoRepository productoRepository;
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private CajaRepository cajaRepository;
+    @Autowired private StockMovementService stockMovementService;
+    @Autowired private AuditoryLogService auditoryLogService;
 
     @Transactional
     public Venta guardar(VentaDTO dto) {
@@ -48,6 +50,8 @@ public class VentaService {
         List<ItemVenta> items = new ArrayList<>();
         double subtotal = 0;
 
+        Usuario usuario = stockMovementService.getCurrentUser();
+
         for (ItemVentaDTO itemDto : dto.getItems()) {
             Producto p = productoRepository.findByIdAndTenantId(itemDto.getProductoId(), tenant)
                     .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + itemDto.getProductoId()));
@@ -55,9 +59,6 @@ public class VentaService {
             if (p.getCantidadStock() < itemDto.getCantidad()) {
                 throw new BusinessException("Stock insuficiente para: " + p.getNombre());
             }
-
-            p.setCantidadStock(p.getCantidadStock() - itemDto.getCantidad());
-            productoRepository.save(p);
 
             ItemVenta item = new ItemVenta();
             item.setVenta(venta);
@@ -88,7 +89,23 @@ public class VentaService {
 
         caja.setMontoFinalEsperado(caja.getMontoInicial() + caja.getMontoVentasEfectivo());
         cajaRepository.save(caja);
-        return ventaRepository.save(venta);
+
+        Venta saved = ventaRepository.save(venta);
+
+        for (ItemVenta item : saved.getItems()) {
+            stockMovementService.registrar(MovementType.VENTA, item.getProducto(), usuario,
+                    item.getCantidad(), "Venta #" + saved.getId(), saved, null);
+        }
+
+        String clienteNombre = saved.getCliente() != null
+                ? saved.getCliente().getNombre() + " " + saved.getCliente().getApellido()
+                : "Consumidor Final";
+        auditoryLogService.registrar("CREATE", "VENTA", saved.getId(),
+                "Venta #" + saved.getId() + " - " + clienteNombre + " - $" +
+                String.format("%.2f", saved.getTotalFinal()) + " (" + saved.getMetodoPago() + ")",
+                null, null);
+
+        return saved;
     }
 
     @Transactional
@@ -107,11 +124,11 @@ public class VentaService {
             throw new BusinessException("La venta ya fue anulada anteriormente.");
         }
 
-        // Devolvemos el stock de cada ítem
+        Usuario usuario = stockMovementService.getCurrentUser();
+
         for (ItemVenta item : venta.getItems()) {
-            Producto producto = item.getProducto();
-            producto.setCantidadStock(producto.getCantidadStock() + item.getCantidad());
-            productoRepository.save(producto);
+            stockMovementService.registrar(MovementType.AJUSTE, item.getProducto(), usuario,
+                    item.getCantidad(), "Devolución por anulación de venta #" + venta.getId(), null, null);
         }
 
         // Actualizamos la caja si está abierta
@@ -130,7 +147,13 @@ public class VentaService {
         });
 
         venta.setEstado("ANULADA");
-        return ventaRepository.save(venta);
+        Venta saved = ventaRepository.save(venta);
+        String clienteNombre = saved.getCliente() != null
+                ? saved.getCliente().getNombre() + " " + saved.getCliente().getApellido()
+                : "Consumidor Final";
+        auditoryLogService.registrar("UPDATE", "VENTA", saved.getId(),
+                "Venta #" + saved.getId() + " anulada - " + clienteNombre, null, null);
+        return saved;
     }
 
     public Page<Venta> buscarVentas(String tenantId, LocalDate desde, LocalDate hasta,

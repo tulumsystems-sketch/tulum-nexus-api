@@ -1,6 +1,7 @@
 package com.tulumcore.api.entities;
 
 public enum Rol {
-    ADMIN,      // Acceso total: configuración, usuarios, reportes, caja
-    OPERADOR    // Acceso operativo: ventas, productos, clientes
+    SUPER_ADMIN, // Acceso global: administración de todos los tenants
+    ADMIN,       // Acceso total: configuración, usuarios, reportes, caja
+    OPERADOR     // Acceso operativo: ventas, productos, clientes
 }
