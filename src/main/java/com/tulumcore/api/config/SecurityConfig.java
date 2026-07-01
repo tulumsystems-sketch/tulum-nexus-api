@@ -2,6 +2,7 @@ package com.tulumcore.api.config;
 
 import com.tulumcore.api.security.TenantFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,6 +29,9 @@ public class SecurityConfig {
 
     @Autowired
     private TenantFilter tenantFilter;
+
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -65,13 +69,12 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Dominios permitidos
-        configuration.setAllowedOrigins(Arrays.asList(
-                "https://tulum-core.netlify.app",
-                "https://teal-tanuki-dea827.netlify.app",
-                "http://localhost:3000",
-                "http://localhost:5173"
-        ));
+        // Dominios permitidos, configurables por entorno con CORS_ALLOWED_ORIGINS
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList();
+        configuration.setAllowedOrigins(origins);
 
         // Métodos HTTP permitidos
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
