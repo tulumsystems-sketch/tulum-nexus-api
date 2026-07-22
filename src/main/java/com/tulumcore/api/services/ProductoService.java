@@ -4,6 +4,7 @@ import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.MovementType;
 import com.tulumcore.api.entities.Producto;
 import com.tulumcore.api.entities.Usuario;
+import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.ProductoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,13 +38,28 @@ public class ProductoService {
 
     public List<Producto> buscarPorNombre(String query) {
         String tenant = TenantContext.getCurrentTenant();
-        return productoRepository.findByNombreContainingIgnoreCaseAndTenantId(query, tenant);
+        String normalizedQuery = query != null ? query.trim() : "";
+        if (normalizedQuery.isEmpty()) {
+            return productoRepository.findAllByTenantId(tenant);
+        }
+        return productoRepository.buscarPorNombreOCodigo(normalizedQuery, tenant);
+    }
+
+    public Optional<Producto> buscarPorCodigoBarras(String codigoBarras) {
+        String tenant = TenantContext.getCurrentTenant();
+        String normalizedCodigo = normalizarCodigoBarras(codigoBarras);
+        if (normalizedCodigo == null) {
+            return Optional.empty();
+        }
+        return productoRepository.findByCodigoBarrasAndTenantId(normalizedCodigo, tenant);
     }
 
     public Producto createOrUpdateProducto(Producto producto) {
         boolean isNew = producto.getId() == null;
         String tenant = TenantContext.getCurrentTenant();
         producto.setTenantId(tenant);
+        producto.setCodigoBarras(normalizarCodigoBarras(producto.getCodigoBarras()));
+        validarCodigoBarrasUnico(producto, tenant);
 
         String detalleAnterior = null;
         if (!isNew) {
@@ -93,7 +109,28 @@ public class ProductoService {
                 "stock", producto.getCantidadStock(),
                 "stockMinimo", producto.getStockMinimo(),
                 "medidas", producto.getMedidas(),
+                "codigoBarras", producto.getCodigoBarras(),
                 "categoriaId", producto.getCategoria() != null ? producto.getCategoria().getId() : null
         );
+    }
+
+    private String normalizarCodigoBarras(String codigoBarras) {
+        if (codigoBarras == null || codigoBarras.trim().isEmpty()) {
+            return null;
+        }
+        return codigoBarras.trim();
+    }
+
+    private void validarCodigoBarrasUnico(Producto producto, String tenant) {
+        String codigoBarras = producto.getCodigoBarras();
+        if (codigoBarras == null) {
+            return;
+        }
+
+        productoRepository.findByCodigoBarrasAndTenantId(codigoBarras, tenant)
+                .filter(existing -> producto.getId() == null || !existing.getId().equals(producto.getId()))
+                .ifPresent(existing -> {
+                    throw new BusinessException("Ya existe un producto con este codigo de barras.");
+                });
     }
 }

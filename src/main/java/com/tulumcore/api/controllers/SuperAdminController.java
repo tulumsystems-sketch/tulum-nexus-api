@@ -22,6 +22,11 @@ public class SuperAdminController {
         return service.listarConfigs();
     }
 
+    @PostMapping("/tenants")
+    public TenantConfig crearTenant(@RequestBody CreateTenantDTO request) {
+        return service.crearTenant(request);
+    }
+
     @PutMapping("/tenants/{tenantId}/status")
     public ResponseEntity<Void> toggleStatus(@PathVariable String tenantId, @RequestBody Map<String, Boolean> body) {
         boolean activo = body.getOrDefault("activo", true);
