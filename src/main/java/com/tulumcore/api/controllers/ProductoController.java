@@ -36,6 +36,21 @@ public class ProductoController {
                 .toList();
     }
 
+    @GetMapping("/buscar")
+    public List<ProductoResponseDTO> buscarProductos(@RequestParam("q") String query) {
+        return productoService.buscarPorNombre(query)
+                .stream()
+                .map(this::toDTO)
+                .toList();
+    }
+
+    @GetMapping("/codigo/{codigoBarras}")
+    public ProductoResponseDTO getProductoPorCodigoBarras(@PathVariable String codigoBarras) {
+        return productoService.buscarPorCodigoBarras(codigoBarras)
+                .map(this::toDTO)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado para el codigo de barras indicado."));
+    }
+
     @PostMapping
     public ResponseEntity<ProductoResponseDTO> createProducto(@RequestBody ProductoDTO dto) {
         if (dto.getNombre() == null || dto.getNombre().trim().isEmpty()) {
@@ -53,6 +68,7 @@ public class ProductoController {
         producto.setCantidadStock(0);
         producto.setStockMinimo(dto.getStockMinimo());
         producto.setMedidas(dto.getMedidas());
+        producto.setCodigoBarras(dto.getCodigoBarras());
         producto.setImageUrl(dto.getImageUrl());
         producto.setCategoria(categoria);
 
@@ -78,6 +94,7 @@ public class ProductoController {
         existente.setCantidadStock(dto.getCantidadStock());
         existente.setStockMinimo(dto.getStockMinimo());
         existente.setMedidas(dto.getMedidas());
+        existente.setCodigoBarras(dto.getCodigoBarras());
 
         if (dto.getImageUrl() != null) {
             existente.setImageUrl(dto.getImageUrl());
@@ -119,6 +136,7 @@ public class ProductoController {
                 p.getCantidadStock(),
                 p.getStockMinimo(),
                 p.getMedidas(),
+                p.getCodigoBarras(),
                 p.getImageUrl(),
                 categoriaDTO
         );

@@ -7,6 +7,7 @@ public class ProductoDTO {
     private Integer cantidadStock;
     private Integer stockMinimo;
     private String medidas;
+    private String codigoBarras;
     private Long categoriaId;
     private String imageUrl;
 
@@ -22,6 +23,8 @@ public class ProductoDTO {
     public void setStockMinimo(Integer stockMinimo) { this.stockMinimo = stockMinimo; }
     public String getMedidas() { return medidas; }
     public void setMedidas(String medidas) { this.medidas = medidas; }
+    public String getCodigoBarras() { return codigoBarras; }
+    public void setCodigoBarras(String codigoBarras) { this.codigoBarras = codigoBarras; }
     public Long getCategoriaId() { return categoriaId; }
     public void setCategoriaId(Long categoriaId) { this.categoriaId = categoriaId; }
     public String getImageUrl() { return imageUrl; }
