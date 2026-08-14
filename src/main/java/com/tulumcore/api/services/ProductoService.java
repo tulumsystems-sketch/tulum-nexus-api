@@ -1,11 +1,16 @@
 package com.tulumcore.api.services;
 
 import com.tulumcore.api.config.TenantContext;
+import com.tulumcore.api.entities.FeatureKey;
+import com.tulumcore.api.entities.MovementType;
 import com.tulumcore.api.entities.Producto;
+import com.tulumcore.api.entities.Usuario;
+import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.ProductoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +20,15 @@ public class ProductoService {
 
     @Autowired
     private ProductoRepository productoRepository;
+
+    @Autowired
+    private StockMovementService stockMovementService;
+
+    @Autowired
+    private AuditoryLogService auditoryLogService;
+
+    @Autowired
+    private TenantFeatureService tenantFeatureService;
 
     public List<Producto> getAllProductos() {
         String tenant = TenantContext.getCurrentTenant();
@@ -28,22 +42,60 @@ public class ProductoService {
 
     public List<Producto> buscarPorNombre(String query) {
         String tenant = TenantContext.getCurrentTenant();
-        return productoRepository.findByNombreContainingIgnoreCaseAndTenantId(query, tenant);
+        String normalizedQuery = query != null ? query.trim() : "";
+        if (normalizedQuery.isEmpty()) {
+            return productoRepository.findAllByTenantId(tenant);
+        }
+        return productoRepository.findByNombreContainingIgnoreCaseAndTenantId(normalizedQuery, tenant);
+    }
+
+    public Optional<Producto> buscarPorCodigoBarras(String codigoBarras) {
+        tenantFeatureService.requireEnabled(FeatureKey.POS_BARCODE);
+        String tenant = TenantContext.getCurrentTenant();
+        String normalizedCodigo = normalizarCodigoBarras(codigoBarras);
+        if (normalizedCodigo == null) {
+            return Optional.empty();
+        }
+        return productoRepository.findByCodigoBarrasAndTenantId(normalizedCodigo, tenant);
     }
 
     public Producto createOrUpdateProducto(Producto producto) {
-        return productoRepository.save(producto);
+        boolean isNew = producto.getId() == null;
+        String tenant = TenantContext.getCurrentTenant();
+        producto.setTenantId(tenant);
+        producto.setCodigoBarras(normalizarCodigoBarras(producto.getCodigoBarras()));
+        validarCodigoBarrasUnico(producto, tenant);
+
+        String detalleAnterior = null;
+        if (!isNew) {
+            detalleAnterior = productoRepository.findByIdAndTenantId(producto.getId(), tenant)
+                    .map(this::detalleProducto)
+                    .orElse(null);
+        }
+
+        Producto saved = productoRepository.save(producto);
+        auditoryLogService.registrar(isNew ? "CREATE" : "UPDATE", "PRODUCTO", saved.getId(),
+                (isNew ? "Producto creado: " : "Producto actualizado: ") + saved.getNombre(),
+                detalleAnterior, detalleProducto(saved));
+        return saved;
     }
 
     public void deleteProducto(Long id) {
-        getProductoById(id).ifPresent(p -> productoRepository.deleteById(id));
+        getProductoById(id).ifPresent(p -> {
+            String detalleAnterior = detalleProducto(p);
+            productoRepository.delete(p);
+            auditoryLogService.registrar("DELETE", "PRODUCTO", id,
+                    "Producto eliminado: " + p.getNombre(), detalleAnterior, null);
+        });
     }
 
+    @Transactional
     public void adjustStock(Long id, int cantidad) {
         Producto producto = getProductoById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con id: " + id));
-        producto.setCantidadStock(producto.getCantidadStock() + cantidad);
-        productoRepository.save(producto);
+        Usuario usuario = stockMovementService.getCurrentUser();
+        stockMovementService.registrar(MovementType.AJUSTE, producto, usuario,
+                cantidad, "Ajuste manual de stock", null, null);
     }
 
     public List<Producto> getLatestProductos(int limit) {
@@ -53,5 +105,37 @@ public class ProductoService {
                 .sorted((a, b) -> b.getId().compareTo(a.getId()))
                 .limit(limit)
                 .toList();
+    }
+
+    private String detalleProducto(Producto producto) {
+        return auditoryLogService.detalle(
+                "nombre", producto.getNombre(),
+                "precio", producto.getPrecio(),
+                "stock", producto.getCantidadStock(),
+                "stockMinimo", producto.getStockMinimo(),
+                "medidas", producto.getMedidas(),
+                "codigoBarras", producto.getCodigoBarras(),
+                "categoriaId", producto.getCategoria() != null ? producto.getCategoria().getId() : null
+        );
+    }
+
+    private String normalizarCodigoBarras(String codigoBarras) {
+        if (codigoBarras == null || codigoBarras.trim().isEmpty()) {
+            return null;
+        }
+        return codigoBarras.trim();
+    }
+
+    private void validarCodigoBarrasUnico(Producto producto, String tenant) {
+        String codigoBarras = producto.getCodigoBarras();
+        if (codigoBarras == null) {
+            return;
+        }
+
+        productoRepository.findByCodigoBarrasAndTenantId(codigoBarras, tenant)
+                .filter(existing -> producto.getId() == null || !existing.getId().equals(producto.getId()))
+                .ifPresent(existing -> {
+                    throw new BusinessException("Ya existe un producto con este codigo de barras.");
+                });
     }
 }

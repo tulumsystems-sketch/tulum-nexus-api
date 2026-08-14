@@ -1,13 +1,14 @@
 package com.tulumcore.api.services;
 
-import com.tulumcore.api.controllers.VentaResumenDTO;
-import com.tulumcore.api.controllers.VentaDTO;
+import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.controllers.ItemVentaDTO;
+import com.tulumcore.api.controllers.VentaDTO;
+import com.tulumcore.api.controllers.VentaResumenDTO;
 import com.tulumcore.api.entities.*;
 import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.*;
-import com.tulumcore.api.config.TenantContext;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,7 +16,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -28,6 +28,8 @@ public class VentaService {
     @Autowired private ProductoRepository productoRepository;
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private CajaRepository cajaRepository;
+    @Autowired private StockMovementService stockMovementService;
+    @Autowired private AuditoryLogService auditoryLogService;
 
     @Transactional
     public Venta guardar(VentaDTO dto) {
@@ -42,31 +44,39 @@ public class VentaService {
         venta.setTenantId(tenant);
 
         if (dto.getClienteId() != null && dto.getClienteId() > 0) {
-            venta.setCliente(clienteRepository.findById(dto.getClienteId()).orElse(null));
+            venta.setCliente(clienteRepository.findByIdAndTenantId(dto.getClienteId(), tenant).orElse(null));
         }
 
         List<ItemVenta> items = new ArrayList<>();
+        Map<Long, Integer> cantidadesPorProducto = new HashMap<>();
         double subtotal = 0;
+
+        Usuario usuario = stockMovementService.getCurrentUser();
 
         for (ItemVentaDTO itemDto : dto.getItems()) {
             Producto p = productoRepository.findByIdAndTenantId(itemDto.getProductoId(), tenant)
                     .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + itemDto.getProductoId()));
 
-            if (p.getCantidadStock() < itemDto.getCantidad()) {
-                throw new BusinessException("Stock insuficiente para: " + p.getNombre());
+            int cantidad = itemDto.getCantidad() != null ? itemDto.getCantidad() : 0;
+            if (cantidad <= 0) {
+                throw new BusinessException("La cantidad vendida debe ser mayor a cero para: " + p.getNombre());
             }
 
-            p.setCantidadStock(p.getCantidadStock() - itemDto.getCantidad());
-            productoRepository.save(p);
+            int cantidadAcumulada = cantidadesPorProducto.merge(p.getId(), cantidad, Integer::sum);
+            int stockDisponible = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
+            if (stockDisponible < cantidadAcumulada) {
+                throw new BusinessException("Stock insuficiente para: " + p.getNombre()
+                        + ". Disponible: " + stockDisponible + ", requerido: " + cantidadAcumulada + ".");
+            }
 
             ItemVenta item = new ItemVenta();
             item.setVenta(venta);
             item.setProducto(p);
-            item.setCantidad(itemDto.getCantidad());
+            item.setCantidad(cantidad);
             item.setPrecioUnitario(p.getPrecio());
             item.setTenantId(tenant);
             items.add(item);
-            subtotal += p.getPrecio() * itemDto.getCantidad();
+            subtotal += p.getPrecio() * cantidad;
         }
 
         venta.setItems(items);
@@ -88,49 +98,62 @@ public class VentaService {
 
         caja.setMontoFinalEsperado(caja.getMontoInicial() + caja.getMontoVentasEfectivo());
         cajaRepository.save(caja);
-        return ventaRepository.save(venta);
+
+        Venta saved = ventaRepository.save(venta);
+
+        for (ItemVenta item : saved.getItems()) {
+            stockMovementService.registrar(MovementType.VENTA, item.getProducto(), usuario,
+                    item.getCantidad(), "Venta #" + saved.getId(), saved, null);
+        }
+
+        String clienteNombre = saved.getCliente() != null
+                ? saved.getCliente().getNombre() + " " + saved.getCliente().getApellido()
+                : "Consumidor Final";
+        auditoryLogService.registrar("CREATE", "VENTA", saved.getId(),
+                "Venta #" + saved.getId() + " - " + clienteNombre + " - $" +
+                        String.format("%.2f", saved.getTotalFinal()) + " (" + saved.getMetodoPago() + ")",
+                null, detalleVenta(saved));
+
+        return saved;
     }
 
     @Transactional
     public Venta anularVenta(Long id) {
         String tenant = TenantContext.getCurrentTenant();
 
-        Venta venta = ventaRepository.findById(id)
+        Venta venta = ventaRepository.findByIdAndTenantId(id, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada con id: " + id));
-
-        // Validamos que pertenece al tenant
-        if (!venta.getTenantId().equals(tenant)) {
-            throw new BusinessException("No tiene permisos para anular esta venta.");
-        }
 
         if ("ANULADA".equals(venta.getEstado())) {
             throw new BusinessException("La venta ya fue anulada anteriormente.");
         }
 
-        // Devolvemos el stock de cada ítem
+        Usuario usuario = stockMovementService.getCurrentUser();
+        String detalleAnterior = detalleVenta(venta);
+
         for (ItemVenta item : venta.getItems()) {
-            Producto producto = item.getProducto();
-            producto.setCantidadStock(producto.getCantidadStock() + item.getCantidad());
-            productoRepository.save(producto);
+            stockMovementService.registrar(MovementType.AJUSTE, item.getProducto(), usuario,
+                    item.getCantidad(), "Devolucion por anulacion de venta #" + venta.getId(), venta, null);
         }
 
-        // Actualizamos la caja si está abierta
         cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant).ifPresent(caja -> {
             if ("EFECTIVO".equalsIgnoreCase(venta.getMetodoPago())) {
-                caja.setMontoVentasEfectivo(
-                        Math.max(0, caja.getMontoVentasEfectivo() - venta.getTotalFinal())
-                );
+                caja.setMontoVentasEfectivo(Math.max(0, caja.getMontoVentasEfectivo() - venta.getTotalFinal()));
                 caja.setMontoFinalEsperado(caja.getMontoInicial() + caja.getMontoVentasEfectivo());
             } else {
-                caja.setMontoVentasMP(
-                        Math.max(0, caja.getMontoVentasMP() - venta.getTotalFinal())
-                );
+                caja.setMontoVentasMP(Math.max(0, caja.getMontoVentasMP() - venta.getTotalFinal()));
             }
             cajaRepository.save(caja);
         });
 
         venta.setEstado("ANULADA");
-        return ventaRepository.save(venta);
+        Venta saved = ventaRepository.save(venta);
+        String clienteNombre = saved.getCliente() != null
+                ? saved.getCliente().getNombre() + " " + saved.getCliente().getApellido()
+                : "Consumidor Final";
+        auditoryLogService.registrar("UPDATE", "VENTA", saved.getId(),
+                "Venta #" + saved.getId() + " anulada - " + clienteNombre, detalleAnterior, detalleVenta(saved));
+        return saved;
     }
 
     public Page<Venta> buscarVentas(String tenantId, LocalDate desde, LocalDate hasta,
@@ -168,5 +191,16 @@ public class VentaService {
         });
 
         return new ArrayList<>(resumenMap.values());
+    }
+
+    private String detalleVenta(Venta venta) {
+        return auditoryLogService.detalle(
+                "estado", venta.getEstado(),
+                "metodoPago", venta.getMetodoPago(),
+                "totalFinal", venta.getTotalFinal(),
+                "montoAbonado", venta.getMontoAbonado(),
+                "vuelto", venta.getVuelto(),
+                "items", venta.getItems() != null ? venta.getItems().size() : 0
+        );
     }
 }

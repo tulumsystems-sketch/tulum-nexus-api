@@ -38,7 +38,7 @@ public class UsuarioController {
     public ResponseEntity<UsuarioResponseDTO> createUsuario(@RequestBody UsuarioCreateDTO dto) {
         String tenant = TenantContext.getCurrentTenant();
 
-        if (usuarioRepository.findByEmail(dto.email()).isPresent()) {
+        if (usuarioRepository.findByEmailAndTenantId(dto.email(), tenant).isPresent()) {
             throw new BusinessException("Ya existe un usuario con ese email.");
         }
 
@@ -71,10 +71,10 @@ public class UsuarioController {
     public ResponseEntity<Void> deleteUsuario(@PathVariable Long id) {
         String tenant = TenantContext.getCurrentTenant();
 
-        usuarioRepository.findByIdAndTenantId(id, tenant)
+        Usuario usuario = usuarioRepository.findByIdAndTenantId(id, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
 
-        usuarioRepository.deleteById(id);
+        usuarioRepository.delete(usuario);
         return ResponseEntity.noContent().build();
     }
 }

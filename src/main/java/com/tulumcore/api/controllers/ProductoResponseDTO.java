@@ -12,6 +12,7 @@ public record ProductoResponseDTO(
         Integer cantidadStock,
         Integer stockMinimo,
         String medidas,
+        String codigoBarras,
         String imageUrl,
         CategoriaDTO categoria
 ) {}

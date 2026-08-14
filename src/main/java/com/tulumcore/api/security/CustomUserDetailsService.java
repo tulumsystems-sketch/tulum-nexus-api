@@ -1,5 +1,6 @@
 package com.tulumcore.api.security;
 
+import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.repositories.UsuarioRepository;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -22,7 +23,12 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        Usuario usuario = usuarioRepository.findByEmail(email)
+        String tenant = TenantContext.getCurrentTenant();
+        if (tenant == null || tenant.isBlank()) {
+            throw new UsernameNotFoundException("Tenant no definido para usuario: " + email);
+        }
+
+        Usuario usuario = usuarioRepository.findByEmailAndTenantId(email, tenant)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + email));
 
         // El rol se convierte en authority de Spring Security (ej: ROLE_ADMIN, ROLE_OPERADOR)

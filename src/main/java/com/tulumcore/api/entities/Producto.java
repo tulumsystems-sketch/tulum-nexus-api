@@ -16,6 +16,9 @@ public class Producto extends BaseEntity {
     private Integer stockMinimo = 0; // Alerta cuando cantidadStock <= stockMinimo
     private String medidas;
 
+    @Column(name = "codigo_barras", length = 64)
+    private String codigoBarras;
+
     @Column(name = "image_url")
     private String imageUrl;
 
@@ -37,6 +40,8 @@ public class Producto extends BaseEntity {
     public void setStockMinimo(Integer stockMinimo) { this.stockMinimo = stockMinimo; }
     public String getMedidas() { return medidas; }
     public void setMedidas(String medidas) { this.medidas = medidas; }
+    public String getCodigoBarras() { return codigoBarras; }
+    public void setCodigoBarras(String codigoBarras) { this.codigoBarras = codigoBarras; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
     public Categoria getCategoria() { return categoria; }

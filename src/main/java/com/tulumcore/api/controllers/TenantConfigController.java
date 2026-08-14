@@ -18,14 +18,7 @@ public class TenantConfigController {
         String tenant = TenantContext.getCurrentTenant();
         // Si no existe configuración para este tenant, le creamos una vacía en memoria para el Front
         return configRepository.findByTenantId(tenant)
-                .orElseGet(() -> {
-                    TenantConfig defaultConfig = new TenantConfig();
-                    defaultConfig.setNombreEmpresa("Mi Empresa");
-                    defaultConfig.setMpAceptarCredito(true);
-                    defaultConfig.setMpAceptarDebito(true);
-                    defaultConfig.setMpAceptarEfectivo(false);
-                    return defaultConfig;
-                });
+                .orElseGet(TenantConfig::new);
     }
 
     @PostMapping
@@ -35,6 +28,7 @@ public class TenantConfigController {
         // Buscamos si ya tiene configuración, si no, creamos una nueva
         TenantConfig config = configRepository.findByTenantId(tenant)
                 .orElse(new TenantConfig());
+        config.setTenantId(tenant);
 
         // Actualizamos los valores
         config.setNombreEmpresa(dto.getNombreEmpresa());

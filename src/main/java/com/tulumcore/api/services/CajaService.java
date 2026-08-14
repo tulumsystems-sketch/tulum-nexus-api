@@ -1,6 +1,7 @@
 package com.tulumcore.api.services;
 
 import com.tulumcore.api.entities.Caja;
+import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.CajaRepository;
@@ -19,6 +20,9 @@ public class CajaService {
     @Autowired
     private CajaRepository cajaRepository;
 
+    @Autowired
+    private AuditoryLogService auditoryLogService;
+
     public Optional<Caja> obtenerCajaAbierta() {
         String tenant = TenantContext.getCurrentTenant();
         return cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant);
@@ -32,6 +36,7 @@ public class CajaService {
     @Transactional
     public Caja abrirCaja(Double montoInicial) {
         String tenant = TenantContext.getCurrentTenant();
+        Usuario usuario = auditoryLogService.getCurrentUser();
 
         if (obtenerCajaAbierta().isPresent()) {
             throw new BusinessException("Ya existe una caja abierta para este comercio.");
@@ -45,8 +50,12 @@ public class CajaService {
         nuevaCaja.setMontoFinalEsperado(montoInicial);
         nuevaCaja.setEstado("ABIERTA");
         nuevaCaja.setTenantId(tenant);
+        nuevaCaja.setUsuarioApertura(usuario);
 
-        return cajaRepository.save(nuevaCaja);
+        Caja saved = cajaRepository.save(nuevaCaja);
+        auditoryLogService.registrar("CREATE", "CAJA", saved.getId(),
+                "Caja abierta", null, detalleCaja(saved));
+        return saved;
     }
 
     @Transactional
@@ -54,10 +63,25 @@ public class CajaService {
         Caja caja = obtenerCajaAbierta()
                 .orElseThrow(() -> new ResourceNotFoundException("No hay una caja abierta para cerrar."));
 
+        String detalleAnterior = detalleCaja(caja);
         caja.setFechaCierre(LocalDateTime.now());
         caja.setMontoFinalReal(montoFinalReal);
         caja.setEstado("CERRADA");
 
-        return cajaRepository.save(caja);
+        Caja saved = cajaRepository.save(caja);
+        auditoryLogService.registrar("UPDATE", "CAJA", saved.getId(),
+                "Caja cerrada", detalleAnterior, detalleCaja(saved));
+        return saved;
+    }
+
+    private String detalleCaja(Caja caja) {
+        return auditoryLogService.detalle(
+                "estado", caja.getEstado(),
+                "montoInicial", caja.getMontoInicial(),
+                "montoVentasEfectivo", caja.getMontoVentasEfectivo(),
+                "montoVentasMP", caja.getMontoVentasMP(),
+                "montoFinalEsperado", caja.getMontoFinalEsperado(),
+                "montoFinalReal", caja.getMontoFinalReal()
+        );
     }
 }

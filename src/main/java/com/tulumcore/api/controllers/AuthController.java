@@ -53,12 +53,12 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "La contraseña debe tener al menos 6 caracteres"));
         }
 
-        if (usuarioRepository.findByEmail(req.email()).isPresent()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Ya existe un usuario con ese email"));
-        }
-
         try {
             TenantContext.setCurrentTenant(req.tenant());
+
+            if (usuarioRepository.findByEmailAndTenantId(req.email(), req.tenant()).isPresent()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Ya existe un usuario con ese email"));
+            }
 
             Usuario usuario = new Usuario();
             usuario.setEmail(req.email());
@@ -69,9 +69,6 @@ public class AuthController {
 
             TenantConfig config = new TenantConfig();
             config.setNombreEmpresa(req.companyName() != null ? req.companyName() : req.tenant());
-            config.setMpAceptarEfectivo(true);
-            config.setMpAceptarCredito(false);
-            config.setMpAceptarDebito(false);
             config.setTenantId(req.tenant());
             tenantConfigRepository.save(config);
 
@@ -99,10 +96,10 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "El campo empresa (tenant) es obligatorio"));
             }
 
-            // NOTA PARA EL FRONTEND: Es vital que en Axios (Login.tsx) envíes el Header 'X-Tenant-ID'
-            // en esta misma petición de login, de lo contrario CustomUserDetailsService fallará.
+            // 2. Setear TenantContext para que el @TenantId de Hibernate filtre correctamente
+            TenantContext.setCurrentTenant(loginRequest.tenant());
 
-            // 2. Intentar autenticar con Spring Security
+            // 3. Intentar autenticar con Spring Security
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             loginRequest.email(),
@@ -110,18 +107,18 @@ public class AuthController {
                     )
             );
 
-            // 3. Buscar el usuario
-            Usuario usuario = usuarioRepository.findByEmail(loginRequest.email())
+            // 4. Buscar el usuario
+            Usuario usuario = usuarioRepository.findByEmailAndTenantId(loginRequest.email(), loginRequest.tenant())
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-            // 4. Generar Token
+            // 5. Generar Token
             String jwt = jwtService.generateToken(
                     loginRequest.email(),
                     loginRequest.tenant(),
                     usuario.getRol().name()
             );
 
-            // 5. Respuesta exitosa
+            // 6. Respuesta exitosa
             return ResponseEntity.ok(Map.of(
                     "token", jwt,
                     "rol", usuario.getRol().name(),
@@ -130,14 +127,13 @@ public class AuthController {
             ));
 
         } catch (BadCredentialsException e) {
-            // Si la contraseña es incorrecta, devolvemos 401 en lugar de 500
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Email o contraseña incorrectos"));
         } catch (AuthenticationException e) {
-            // Cualquier otro error de Spring Security
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "No autorizado: " + e.getMessage()));
         } catch (Exception e) {
-            // Si explota por base de datos o nulos, evitamos el 500 genérico y mostramos la causa real
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Error interno: " + e.getMessage()));
+        } finally {
+            TenantContext.clear();
         }
     }
 }

@@ -1,11 +1,14 @@
 package com.tulumcore.api.controllers;
 
 import com.tulumcore.api.entities.Categoria;
+import com.tulumcore.api.entities.MovementType;
 import com.tulumcore.api.entities.Producto;
+import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.services.CategoriaService;
 import com.tulumcore.api.services.ProductoService;
+import com.tulumcore.api.services.StockMovementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,12 +25,30 @@ public class ProductoController {
     @Autowired
     private CategoriaService categoriaService;
 
+    @Autowired
+    private StockMovementService stockMovementService;
+
     @GetMapping
     public List<ProductoResponseDTO> getAllProductos() {
         return productoService.getAllProductos()
                 .stream()
                 .map(this::toDTO)
                 .toList();
+    }
+
+    @GetMapping("/buscar")
+    public List<ProductoResponseDTO> buscarProductos(@RequestParam("q") String query) {
+        return productoService.buscarPorNombre(query)
+                .stream()
+                .map(this::toDTO)
+                .toList();
+    }
+
+    @GetMapping("/codigo/{codigoBarras}")
+    public ProductoResponseDTO getProductoPorCodigoBarras(@PathVariable String codigoBarras) {
+        return productoService.buscarPorCodigoBarras(codigoBarras)
+                .map(this::toDTO)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado para el codigo de barras indicado."));
     }
 
     @PostMapping
@@ -43,13 +64,23 @@ public class ProductoController {
         producto.setNombre(dto.getNombre());
         producto.setDescripcion(dto.getDescripcion());
         producto.setPrecio(dto.getPrecio());
-        producto.setCantidadStock(dto.getCantidadStock());
+        Integer stockInicial = dto.getCantidadStock() != null ? dto.getCantidadStock() : 0;
+        producto.setCantidadStock(0);
         producto.setStockMinimo(dto.getStockMinimo());
         producto.setMedidas(dto.getMedidas());
+        producto.setCodigoBarras(dto.getCodigoBarras());
         producto.setImageUrl(dto.getImageUrl());
         producto.setCategoria(categoria);
 
-        return ResponseEntity.ok(toDTO(productoService.createOrUpdateProducto(producto)));
+        Producto saved = productoService.createOrUpdateProducto(producto);
+
+        if (stockInicial > 0) {
+            Usuario usuario = stockMovementService.getCurrentUser();
+            stockMovementService.registrar(MovementType.AJUSTE, saved, usuario,
+                    stockInicial, "Stock inicial al crear producto", null, null);
+        }
+
+        return ResponseEntity.ok(toDTO(saved));
     }
 
     @PutMapping("/{id}")
@@ -63,6 +94,7 @@ public class ProductoController {
         existente.setCantidadStock(dto.getCantidadStock());
         existente.setStockMinimo(dto.getStockMinimo());
         existente.setMedidas(dto.getMedidas());
+        existente.setCodigoBarras(dto.getCodigoBarras());
 
         if (dto.getImageUrl() != null) {
             existente.setImageUrl(dto.getImageUrl());
@@ -104,6 +136,7 @@ public class ProductoController {
                 p.getCantidadStock(),
                 p.getStockMinimo(),
                 p.getMedidas(),
+                p.getCodigoBarras(),
                 p.getImageUrl(),
                 categoriaDTO
         );
