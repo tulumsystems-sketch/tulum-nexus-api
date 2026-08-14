@@ -66,9 +66,31 @@ public class TulumCoreApplication {
                     System.out.println(">>> Super Admin creado desde variables de entorno / Rol: SUPER_ADMIN");
                 } else {
                     Usuario u = opt.get();
+                    u.setPassword(passwordEncoder.encode(superAdminPassword));
                     u.setRol(Rol.SUPER_ADMIN);
                     repo.save(u);
                     System.out.println(">>> Super Admin actualizado desde variables de entorno -> Rol: SUPER_ADMIN");
+                }
+
+                // Crear usuario Demo
+                String demoEmail = "demo@tulum.com";
+                String demoTenant = "demo";
+                TenantContext.setCurrentTenant(demoTenant);
+                var optDemo = repo.findByEmailAndTenantId(demoEmail, demoTenant);
+                if (optDemo.isEmpty()) {
+                    Usuario demo = new Usuario();
+                    demo.setEmail(demoEmail);
+                    demo.setPassword(passwordEncoder.encode("Demo2026*"));
+                    demo.setRol(Rol.ADMIN);
+                    demo.setTenantId(demoTenant);
+                    repo.save(demo);
+                    System.out.println(">>> Usuario Demo creado / Tenant: demo / Rol: ADMIN");
+                } else {
+                    Usuario demo = optDemo.get();
+                    demo.setPassword(passwordEncoder.encode("Demo2026*"));
+                    demo.setRol(Rol.ADMIN);
+                    repo.save(demo);
+                    System.out.println(">>> Usuario Demo actualizado / Tenant: demo / Rol: ADMIN");
                 }
             } finally {
                 TenantContext.clear();

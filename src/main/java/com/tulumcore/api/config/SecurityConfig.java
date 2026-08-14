@@ -64,6 +64,7 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "SUPER_ADMIN")
                         // Admin solo SUPER_ADMIN
                         .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/superadmin/**").hasRole("SUPER_ADMIN")
                         // Todo lo demás requiere autenticación
                         .anyRequest().authenticated()
                 )

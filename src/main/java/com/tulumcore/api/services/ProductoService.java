@@ -1,6 +1,7 @@
 package com.tulumcore.api.services;
 
 import com.tulumcore.api.config.TenantContext;
+import com.tulumcore.api.entities.FeatureKey;
 import com.tulumcore.api.entities.MovementType;
 import com.tulumcore.api.entities.Producto;
 import com.tulumcore.api.entities.Usuario;
@@ -26,6 +27,9 @@ public class ProductoService {
     @Autowired
     private AuditoryLogService auditoryLogService;
 
+    @Autowired
+    private TenantFeatureService tenantFeatureService;
+
     public List<Producto> getAllProductos() {
         String tenant = TenantContext.getCurrentTenant();
         return productoRepository.findAllByTenantId(tenant);
@@ -42,10 +46,11 @@ public class ProductoService {
         if (normalizedQuery.isEmpty()) {
             return productoRepository.findAllByTenantId(tenant);
         }
-        return productoRepository.buscarPorNombreOCodigo(normalizedQuery, tenant);
+        return productoRepository.findByNombreContainingIgnoreCaseAndTenantId(normalizedQuery, tenant);
     }
 
     public Optional<Producto> buscarPorCodigoBarras(String codigoBarras) {
+        tenantFeatureService.requireEnabled(FeatureKey.POS_BARCODE);
         String tenant = TenantContext.getCurrentTenant();
         String normalizedCodigo = normalizarCodigoBarras(codigoBarras);
         if (normalizedCodigo == null) {
