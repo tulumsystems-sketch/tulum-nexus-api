@@ -48,6 +48,14 @@ dependencies {
     implementation 'com.itextpdf:itextpdf:5.5.13.3'
 }
 
+bootJar {
+    archiveFileName = 'app.jar'
+}
+
+jar {
+    enabled = false
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 }

@@ -62,6 +62,9 @@ public class SecurityConfig {
                         // Caja: historial y demás para ADMIN y SUPER_ADMIN
                         .requestMatchers("/api/caja/**")
                         .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Usuarios: administración solo ADMIN y SUPER_ADMIN
+                        .requestMatchers("/api/usuarios/**")
+                        .hasAnyRole("ADMIN", "SUPER_ADMIN")
                         // Admin solo SUPER_ADMIN
                         .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/superadmin/**").hasRole("SUPER_ADMIN")
