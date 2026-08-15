@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/media")
 public class MediaController {
@@ -15,27 +17,16 @@ public class MediaController {
 
     @PostMapping("/upload")
     public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file) {
-        // 1. Primer Check: ¿Entró la petición?
-        System.out.println(">>> [DEBUG] Petición recibida en /api/media/upload");
-
         try {
             if (file == null || file.isEmpty()) {
-                System.err.println(">>> [DEBUG] El archivo recibido está vacío o es null");
-                return ResponseEntity.badRequest().body("Archivo vacío");
+                return ResponseEntity.badRequest().body(Map.of("error", "El archivo recibido está vacío"));
             }
 
-            System.out.println(">>> [DEBUG] Archivo: " + file.getOriginalFilename() + " - Tamaño: " + file.getSize());
-
             String url = cloudinaryService.uploadImage(file);
-
-            System.out.println(">>> [DEBUG] Subida exitosa a Cloudinary. URL: " + url);
-            return ResponseEntity.ok("{\"url\": \"" + url + "\"}");
+            return ResponseEntity.ok(Map.of("url", url));
 
         } catch (Exception e) {
-            // 2. Segundo Check: ¿Qué rompió?
-            System.err.println(">>> [ERROR CRÍTICO] Falló el proceso de subida:");
-            e.printStackTrace(); // Esto imprime las letras rojas que necesito ver
-            return ResponseEntity.status(500).body("Error interno: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error al procesar archivo: " + e.getMessage()));
         }
     }
 }
