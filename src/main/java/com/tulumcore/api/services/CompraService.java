@@ -9,6 +9,7 @@ import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.CompraRepository;
 import com.tulumcore.api.repositories.ProductoRepository;
 import com.tulumcore.api.repositories.ProveedorRepository;
+import com.tulumcore.api.repositories.RemitoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,9 @@ public class CompraService {
 
     @Autowired
     private AuditoryLogService auditoryLogService;
+
+    @Autowired
+    private RemitoRepository remitoRepository;
 
     public List<Compra> getAll() {
         return compraRepository.findAllByTenantIdOrderByFechaDesc(TenantContext.getCurrentTenant());
