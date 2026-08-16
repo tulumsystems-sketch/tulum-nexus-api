@@ -37,6 +37,12 @@ public class ClienteController {
         cliente.setNombre(dto.getNombre());
         cliente.setApellido(dto.getApellido());
         cliente.setEmpresa(dto.getEmpresa());
+        cliente.setTelefono(dto.getTelefono());
+        cliente.setDireccion(dto.getDireccion());
+        cliente.setGoogleMapsUrl(dto.getGoogleMapsUrl());
+        if (dto.getSaldoCuentaCorriente() != null) {
+            cliente.setSaldoCuentaCorriente(dto.getSaldoCuentaCorriente());
+        }
 
         Cliente creado = clienteService.createOrUpdateCliente(cliente);
         return ResponseEntity.ok(toDTO(creado));
@@ -50,6 +56,12 @@ public class ClienteController {
         existente.setNombre(dto.getNombre());
         existente.setApellido(dto.getApellido());
         existente.setEmpresa(dto.getEmpresa());
+        existente.setTelefono(dto.getTelefono());
+        existente.setDireccion(dto.getDireccion());
+        existente.setGoogleMapsUrl(dto.getGoogleMapsUrl());
+        if (dto.getSaldoCuentaCorriente() != null) {
+            existente.setSaldoCuentaCorriente(dto.getSaldoCuentaCorriente());
+        }
 
         return toDTO(clienteService.createOrUpdateCliente(existente));
     }
@@ -70,7 +82,11 @@ public class ClienteController {
                 cliente.getId(),
                 cliente.getNombre(),
                 cliente.getApellido(),
-                cliente.getEmpresa()
+                cliente.getEmpresa(),
+                cliente.getTelefono(),
+                cliente.getDireccion(),
+                cliente.getGoogleMapsUrl(),
+                cliente.getSaldoCuentaCorriente()
         );
     }
 }

@@ -9,7 +9,11 @@ public record ClienteResponseDTO(
         Long id,
         String nombre,
         String apellido,
-        String empresa
+        String empresa,
+        String telefono,
+        String direccion,
+        String googleMapsUrl,
+        Double saldoCuentaCorriente
 ) {
     // Los Records en Java generan automáticamente constructor, getters, equals y hashCode.
     // No necesitás escribir nada más.
