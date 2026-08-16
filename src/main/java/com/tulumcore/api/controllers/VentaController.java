@@ -51,4 +51,9 @@ public class VentaController {
     public ResponseEntity<List<VentaResumenDTO>> getResumenSemanal() {
         return ResponseEntity.ok(ventaService.obtenerResumenSemanal(TenantContext.getCurrentTenant()));
     }
+
+    @GetMapping("/stats/resumen-hoy")
+    public ResponseEntity<VentaResumenDTO> getResumenHoy() {
+        return ResponseEntity.ok(ventaService.obtenerResumenHoy(TenantContext.getCurrentTenant()));
+    }
 }
