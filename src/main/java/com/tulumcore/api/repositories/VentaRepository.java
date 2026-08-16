@@ -14,4 +14,5 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     List<Venta> findByTenantId(String currentTenant);
     List<Venta> findByTenantIdAndFechaAfter(String tenantId, LocalDateTime desde);
     Optional<Venta> findByIdAndTenantId(Long id, String tenantId);
+    List<Venta> findByClienteIdAndTenantIdOrderByFechaDesc(Long clienteId, String tenantId);
 }
