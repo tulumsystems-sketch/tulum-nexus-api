@@ -188,6 +188,8 @@ public class VentaService {
 
         return new VentaResumenDTO(LocalDate.now(), ef, mp);
     }
+
+    public List<VentaResumenDTO> obtenerResumenSemanal(String tenantId) {
         LocalDateTime haceSieteDias = LocalDateTime.now().minusDays(7);
         List<Venta> ventas = ventaRepository.findByTenantIdAndFechaAfter(tenantId, haceSieteDias);
 
