@@ -1,5 +1,7 @@
 package com.tulumcore.api;
 
+// trigger deploy
+
 import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.Rol;
 import com.tulumcore.api.entities.Usuario;
