@@ -173,7 +173,21 @@ public class VentaService {
         return ventaRepository.findByTenantId(tenantId);
     }
 
-    public List<VentaResumenDTO> obtenerResumenSemanal(String tenantId) {
+    public VentaResumenDTO obtenerResumenHoy(String tenantId) {
+        LocalDateTime inicioHoy = LocalDate.now().atStartOfDay();
+        List<Venta> ventas = ventaRepository.findByTenantIdAndFechaAfter(tenantId, inicioHoy);
+
+        List<Venta> validas = ventas.stream()
+                .filter(v -> !"ANULADA".equals(v.getEstado()))
+                .toList();
+
+        double ef = validas.stream().filter(v -> "EFECTIVO".equalsIgnoreCase(v.getMetodoPago()))
+                .mapToDouble(Venta::getTotalFinal).sum();
+        double mp = validas.stream().filter(v -> "MERCADO_PAGO".equalsIgnoreCase(v.getMetodoPago()))
+                .mapToDouble(Venta::getTotalFinal).sum();
+
+        return new VentaResumenDTO(LocalDate.now(), ef, mp);
+    }
         LocalDateTime haceSieteDias = LocalDateTime.now().minusDays(7);
         List<Venta> ventas = ventaRepository.findByTenantIdAndFechaAfter(tenantId, haceSieteDias);
 
