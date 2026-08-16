@@ -21,6 +21,7 @@ public class Remito extends BaseEntity {
     private String nombreDestinatario;
     private String telefonoDestinatario;
     private String observaciones;
+    private Double total = 0.0;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "cliente_id")
@@ -47,6 +48,8 @@ public class Remito extends BaseEntity {
     public void setTelefonoDestinatario(String telefonoDestinatario) { this.telefonoDestinatario = telefonoDestinatario; }
     public String getObservaciones() { return observaciones; }
     public void setObservaciones(String observaciones) { this.observaciones = observaciones; }
+    public Double getTotal() { return total; }
+    public void setTotal(Double total) { this.total = total; }
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }
     public List<ItemRemito> getItems() { return items; }

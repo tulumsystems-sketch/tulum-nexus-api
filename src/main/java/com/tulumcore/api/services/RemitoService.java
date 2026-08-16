@@ -58,12 +58,16 @@ public class RemitoService {
         }
 
         List<ItemRemito> items = new ArrayList<>();
+        double totalRemito = 0.0;
         for (ItemRemitoDTO itemDto : dto.getItems()) {
             ItemRemito item = new ItemRemito();
             item.setRemito(remito);
-            item.setCantidad(itemDto.getCantidad());
+            int cantidad = itemDto.getCantidad() != null ? itemDto.getCantidad() : 0;
+            item.setCantidad(cantidad);
             item.setDescripcion(itemDto.getDescripcion());
             item.setTenantId(tenant);
+            item.setPrecioUnitario(0.0);
+            item.setTotalLinea(0.0);
 
             if (itemDto.getProductoId() != null) {
                 Producto producto = productoRepository.findByIdAndTenantId(itemDto.getProductoId(), tenant)
@@ -72,11 +76,17 @@ public class RemitoService {
                 if (item.getDescripcion() == null) {
                     item.setDescripcion(producto.getNombre());
                 }
+                double precioUnitario = producto.getPrecio() != null ? producto.getPrecio() : 0.0;
+                double totalLinea = precioUnitario * cantidad;
+                item.setPrecioUnitario(precioUnitario);
+                item.setTotalLinea(totalLinea);
+                totalRemito += totalLinea;
             }
             items.add(item);
         }
 
         remito.setItems(items);
+        remito.setTotal(totalRemito);
         Remito saved = remitoRepository.save(remito);
         auditoryLogService.registrar("CREATE", "REMITO", saved.getId(),
                 "Remito #" + saved.getNroRemito() + " creado - " +
@@ -169,6 +179,7 @@ public class RemitoService {
                 "estado", remito.getEstado(),
                 "destinatario", remito.getNombreDestinatario(),
                 "direccionEntrega", remito.getDireccionEntrega(),
+                "total", remito.getTotal(),
                 "items", remito.getItems() != null ? remito.getItems().size() : 0
         );
     }

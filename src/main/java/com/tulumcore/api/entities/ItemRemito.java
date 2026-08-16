@@ -21,6 +21,8 @@ public class ItemRemito extends BaseEntity {
     private Producto producto;
 
     private Integer cantidad;
+    private Double precioUnitario = 0.0;
+    private Double totalLinea = 0.0;
     private String descripcion; // Para ítems sin producto registrado (servicios, etc.)
 
     public Long getId() { return id; }
@@ -33,4 +35,8 @@ public class ItemRemito extends BaseEntity {
     public void setCantidad(Integer cantidad) { this.cantidad = cantidad; }
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
+    public Double getPrecioUnitario() { return precioUnitario; }
+    public void setPrecioUnitario(Double precioUnitario) { this.precioUnitario = precioUnitario; }
+    public Double getTotalLinea() { return totalLinea; }
+    public void setTotalLinea(Double totalLinea) { this.totalLinea = totalLinea; }
 }
