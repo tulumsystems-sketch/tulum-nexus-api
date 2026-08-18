@@ -62,6 +62,13 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         .requestMatchers("/api/pagos/**")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        // Cobranzas de remitos: el preventista arma hojas de ruta, no cobra.
+                        .requestMatchers("/api/remitos/cobranzas/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/remitos/*/pagos")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/remitos/*/pagos")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         // Caja: estado, apertura, cierre para ADMIN, OPERADOR, SUPER_ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/caja/estado")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
