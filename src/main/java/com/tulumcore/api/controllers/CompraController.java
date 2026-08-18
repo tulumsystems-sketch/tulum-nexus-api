@@ -21,6 +21,11 @@ public class CompraController {
         return compraService.getAll();
     }
 
+    @GetMapping("/sugerencias")
+    public List<java.util.Map<String, Object>> getSugerencias() {
+        return compraService.obtenerSugerenciasCompra();
+    }
+
     @PostMapping
     public Compra create(@RequestBody CompraDTO dto) {
         return compraService.crear(dto);

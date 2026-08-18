@@ -12,6 +12,19 @@ public class Producto extends BaseEntity {
     private String nombre;
     private String descripcion;
     private Double precio;
+
+    /**
+     * Precio al que se compra el producto. null en los productos cargados antes de
+     * existir el campo: en ese caso el precio de venta es el unico dato confiable.
+     */
+    private Double precioCosto;
+
+    /**
+     * Margen propio del producto sobre el costo, en porcentaje.
+     * null = se usa el margenPorDefecto del TenantConfig.
+     */
+    private Double margenPorcentaje;
+
     private Integer cantidadStock;
     private Integer stockMinimo = 0; // Alerta cuando cantidadStock <= stockMinimo
     private String medidas;
@@ -34,6 +47,10 @@ public class Producto extends BaseEntity {
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
     public Double getPrecio() { return precio; }
     public void setPrecio(Double precio) { this.precio = precio; }
+    public Double getPrecioCosto() { return precioCosto; }
+    public void setPrecioCosto(Double precioCosto) { this.precioCosto = precioCosto; }
+    public Double getMargenPorcentaje() { return margenPorcentaje; }
+    public void setMargenPorcentaje(Double margenPorcentaje) { this.margenPorcentaje = margenPorcentaje; }
     public Integer getCantidadStock() { return cantidadStock; }
     public void setCantidadStock(Integer cantidadStock) { this.cantidadStock = cantidadStock; }
     public Integer getStockMinimo() { return stockMinimo; }

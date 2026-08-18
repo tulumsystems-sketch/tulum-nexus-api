@@ -16,6 +16,17 @@ public class Caja extends BaseEntity {
     private Double montoInicial;
     private Double montoVentasEfectivo;
     private Double montoVentasMP;
+    /** Ventas cobradas por transferencia o alias: no entran al efectivo del cajón. */
+    private Double montoVentasTransferencia = 0.0;
+    /**
+     * Cobranzas de remitos recibidas en efectivo. Se separan de las ventas del dia
+     * para no ensuciar las metricas diarias, pero si entran al efectivo del cajon.
+     */
+    private Double montoCobranzasEfectivo = 0.0;
+
+    /** Cobranzas de remitos recibidas por transferencia o alias: no entran al efectivo del cajon. */
+    private Double montoCobranzasTransferencia = 0.0;
+
     private Double montoFinalEsperado;
     private Double montoFinalReal;
 
@@ -44,6 +55,15 @@ public class Caja extends BaseEntity {
 
     public Double getMontoVentasMP() { return montoVentasMP; }
     public void setMontoVentasMP(Double montoVentasMP) { this.montoVentasMP = montoVentasMP; }
+
+    public Double getMontoVentasTransferencia() { return montoVentasTransferencia; }
+    public void setMontoVentasTransferencia(Double montoVentasTransferencia) { this.montoVentasTransferencia = montoVentasTransferencia; }
+
+    public Double getMontoCobranzasEfectivo() { return montoCobranzasEfectivo; }
+    public void setMontoCobranzasEfectivo(Double montoCobranzasEfectivo) { this.montoCobranzasEfectivo = montoCobranzasEfectivo; }
+
+    public Double getMontoCobranzasTransferencia() { return montoCobranzasTransferencia; }
+    public void setMontoCobranzasTransferencia(Double montoCobranzasTransferencia) { this.montoCobranzasTransferencia = montoCobranzasTransferencia; }
 
     public Double getMontoFinalEsperado() { return montoFinalEsperado; }
     public void setMontoFinalEsperado(Double montoFinalEsperado) { this.montoFinalEsperado = montoFinalEsperado; }

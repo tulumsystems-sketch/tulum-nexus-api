@@ -21,6 +21,17 @@ public class Remito extends BaseEntity {
     private String nombreDestinatario;
     private String telefonoDestinatario;
     private String observaciones;
+    private Double total = 0.0;
+
+    /** Estado de cobranza del remito: IMPAGO, PAGADO_PARCIAL o PAGADO. */
+    @Column(name = "estado_pago")
+    private String estadoPago = "IMPAGO";
+
+    @Column(name = "monto_pagado")
+    private Double montoPagado = 0.0;
+
+    @Column(name = "saldo_pendiente")
+    private Double saldoPendiente = 0.0;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "cliente_id")
@@ -47,6 +58,14 @@ public class Remito extends BaseEntity {
     public void setTelefonoDestinatario(String telefonoDestinatario) { this.telefonoDestinatario = telefonoDestinatario; }
     public String getObservaciones() { return observaciones; }
     public void setObservaciones(String observaciones) { this.observaciones = observaciones; }
+    public Double getTotal() { return total; }
+    public void setTotal(Double total) { this.total = total; }
+    public String getEstadoPago() { return estadoPago; }
+    public void setEstadoPago(String estadoPago) { this.estadoPago = estadoPago; }
+    public Double getMontoPagado() { return montoPagado; }
+    public void setMontoPagado(Double montoPagado) { this.montoPagado = montoPagado; }
+    public Double getSaldoPendiente() { return saldoPendiente; }
+    public void setSaldoPendiente(Double saldoPendiente) { this.saldoPendiente = saldoPendiente; }
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }
     public List<ItemRemito> getItems() { return items; }

@@ -64,6 +64,8 @@ public class ProductoController {
         producto.setNombre(dto.getNombre());
         producto.setDescripcion(dto.getDescripcion());
         producto.setPrecio(dto.getPrecio());
+        producto.setPrecioCosto(dto.getPrecioCosto());
+        producto.setMargenPorcentaje(dto.getMargenPorcentaje());
         Integer stockInicial = dto.getCantidadStock() != null ? dto.getCantidadStock() : 0;
         producto.setCantidadStock(0);
         producto.setStockMinimo(dto.getStockMinimo());
@@ -91,6 +93,8 @@ public class ProductoController {
         existente.setNombre(dto.getNombre());
         existente.setDescripcion(dto.getDescripcion());
         existente.setPrecio(dto.getPrecio());
+        existente.setPrecioCosto(dto.getPrecioCosto());
+        existente.setMargenPorcentaje(dto.getMargenPorcentaje());
         existente.setCantidadStock(dto.getCantidadStock());
         existente.setStockMinimo(dto.getStockMinimo());
         existente.setMedidas(dto.getMedidas());
@@ -126,6 +130,8 @@ public class ProductoController {
             categoriaDTO = new CategoriaDTO();
             categoriaDTO.setId(p.getCategoria().getId());
             categoriaDTO.setNombre(p.getCategoria().getNombre());
+            String unidad = p.getCategoria().getUnidadMedida();
+            categoriaDTO.setUnidadMedida(unidad != null && !unidad.isBlank() ? unidad : "UNIDAD");
         }
 
         return new ProductoResponseDTO(
@@ -133,6 +139,8 @@ public class ProductoController {
                 p.getNombre(),
                 p.getDescripcion(),
                 p.getPrecio(),
+                p.getPrecioCosto(),
+                p.getMargenPorcentaje(),
                 p.getCantidadStock(),
                 p.getStockMinimo(),
                 p.getMedidas(),

@@ -9,13 +9,16 @@ import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.CompraRepository;
 import com.tulumcore.api.repositories.ProductoRepository;
 import com.tulumcore.api.repositories.ProveedorRepository;
+import com.tulumcore.api.repositories.RemitoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class CompraService {
@@ -35,8 +38,58 @@ public class CompraService {
     @Autowired
     private AuditoryLogService auditoryLogService;
 
+    @Autowired
+    private RemitoRepository remitoRepository;
+
     public List<Compra> getAll() {
         return compraRepository.findAllByTenantIdOrderByFechaDesc(TenantContext.getCurrentTenant());
+    }
+
+    public List<Map<String, Object>> obtenerSugerenciasCompra() {
+        String tenant = TenantContext.getCurrentTenant();
+        
+        // 1. Obtener todos los productos del tenant
+        List<Producto> productos = productoRepository.findAllByTenantId(tenant);
+        
+        // 2. Obtener remitos pendientes o en viaje (demanda comprometida)
+        List<Remito> remitosPendientes = remitoRepository.findByTenantIdAndEstadoIn(tenant, List.of("PENDIENTE", "EN_VIAJE"));
+        
+        // 3. Calcular demanda por producto
+        Map<Long, Integer> demandaPorProducto = new HashMap<>();
+        for (Remito r : remitosPendientes) {
+            if (r.getItems() != null) {
+                for (ItemRemito item : r.getItems()) {
+                    if (item.getProducto() != null) {
+                        demandaPorProducto.merge(item.getProducto().getId(), item.getCantidad() != null ? item.getCantidad() : 0, Integer::sum);
+                    }
+                }
+            }
+        }
+        
+        // 4. Calcular faltantes comparando stock actual, demanda y stock mínimo
+        List<Map<String, Object>> sugerencias = new ArrayList<>();
+        for (Producto p : productos) {
+            int stockActual = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
+            int stockMinimo = p.getStockMinimo() != null ? p.getStockMinimo() : 0;
+            int demandaRemitos = demandaPorProducto.getOrDefault(p.getId(), 0);
+            
+            // Formula: Faltante = Demanda de Remitos + Stock Mínimo - Stock Actual
+            int sugerido = demandaRemitos + stockMinimo - stockActual;
+            
+            if (sugerido > 0) {
+                Map<String, Object> sug = new HashMap<>();
+                sug.put("productoId", p.getId());
+                sug.put("nombreProducto", p.getNombre());
+                sug.put("stockActual", stockActual);
+                sug.put("stockMinimo", stockMinimo);
+                sug.put("demandaRemitos", demandaRemitos);
+                sug.put("cantidadSugerida", sugerido);
+                sug.put("precioEstimado", p.getPrecio() != null ? p.getPrecio() : 0.0);
+                sugerencias.add(sug);
+            }
+        }
+        
+        return sugerencias;
     }
 
     @Transactional

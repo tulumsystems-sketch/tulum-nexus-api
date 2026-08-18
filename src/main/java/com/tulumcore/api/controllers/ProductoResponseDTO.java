@@ -9,6 +9,8 @@ public record ProductoResponseDTO(
         String nombre,
         String descripcion,
         Double precio,
+        Double precioCosto,
+        Double margenPorcentaje,
         Integer cantidadStock,
         Integer stockMinimo,
         String medidas,
