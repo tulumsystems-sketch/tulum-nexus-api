@@ -17,11 +17,12 @@ public class TicketService {
     private TenantConfigRepository tenantConfigRepository;
 
     public byte[] generarTicketPDF(Venta venta) throws Exception {
-        // 1. Buscamos el nombre de la empresa dinámicamente
-        String nombreEmpresa = tenantConfigRepository.findByTenantId(venta.getTenantId())
-                .map(TenantConfig::getNombreEmpresa)
-                .filter(name -> !name.isBlank())
-                .orElse("TULUM SYSTEMS"); // Fallback por si no hay config
+        // 1. Buscamos la configuración del tenant (nombre y alias de cobro)
+        TenantConfig config = tenantConfigRepository.findByTenantId(venta.getTenantId()).orElse(null);
+        String nombreEmpresa = config != null && config.getNombreEmpresa() != null && !config.getNombreEmpresa().isBlank()
+                ? config.getNombreEmpresa()
+                : "TULUM SYSTEMS"; // Fallback por si no hay config
+        String aliasCobro = config != null ? config.getAliasCobro() : null;
 
         Document document = new Document(new Rectangle(226, 800));
         document.setMargins(10, 10, 10, 10);
@@ -52,6 +53,13 @@ public class TicketService {
         document.add(new Paragraph("----------------------------------", normal));
         document.add(new Paragraph("TOTAL: $" + venta.getTotalFinal(), bold));
         document.add(new Paragraph("Pago: " + venta.getMetodoPago(), normal));
+
+        // El alias sólo se imprime si el tenant lo tiene cargado
+        if (aliasCobro != null && !aliasCobro.isBlank()) {
+            document.add(new Paragraph("----------------------------------", normal));
+            document.add(new Paragraph("Alias para transferencias:", normal));
+            document.add(new Paragraph(aliasCobro, bold));
+        }
 
         document.add(new Paragraph("\n¡Gracias por su compra!", normal));
 

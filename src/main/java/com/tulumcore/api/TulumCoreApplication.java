@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 @SpringBootApplication
 public class TulumCoreApplication {
@@ -34,12 +36,17 @@ public class TulumCoreApplication {
             @Value("${app.seed.super-admin.tenant:superadmin}") String superAdminTenant) {
         return args -> {
             // TODO: migrar este DDL manual a Flyway/Liquibase antes de endurecer produccion.
-            // Actualizar CHECK constraint del enum Rol (pasa de 'ADMIN','OPERADOR' a incluir 'SUPER_ADMIN')
+            // El constraint se deriva del enum Rol: si se agrega un rol nuevo y este DDL
+            // quedara con la lista vieja, el arranque lo recrearía sin el rol nuevo y
+            // todo insert/update de usuarios empezaría a fallar en produccion.
+            String rolesPermitidos = Arrays.stream(Rol.values())
+                    .map(r -> "'" + r.name() + "'")
+                    .collect(Collectors.joining(","));
             try (var conn = dataSource.getConnection();
                  var stmt = conn.createStatement()) {
                 stmt.execute("ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check");
-                stmt.execute("ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN ('SUPER_ADMIN','ADMIN','OPERADOR'))");
-                System.out.println(">>> CHECK constraint de rol actualizado");
+                stmt.execute("ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN (" + rolesPermitidos + "))");
+                System.out.println(">>> CHECK constraint de rol actualizado: " + rolesPermitidos);
             } catch (Exception e) {
                 System.out.println(">>> [WARN] No se pudo actualizar constraint de rol: " + e.getMessage());
             }

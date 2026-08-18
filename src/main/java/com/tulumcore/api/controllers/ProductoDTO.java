@@ -4,6 +4,8 @@ public class ProductoDTO {
     private String nombre;
     private String descripcion;
     private Double precio;
+    private Double precioCosto;
+    private Double margenPorcentaje;
     private Integer cantidadStock;
     private Integer stockMinimo;
     private String medidas;
@@ -17,6 +19,10 @@ public class ProductoDTO {
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
     public Double getPrecio() { return precio; }
     public void setPrecio(Double precio) { this.precio = precio; }
+    public Double getPrecioCosto() { return precioCosto; }
+    public void setPrecioCosto(Double precioCosto) { this.precioCosto = precioCosto; }
+    public Double getMargenPorcentaje() { return margenPorcentaje; }
+    public void setMargenPorcentaje(Double margenPorcentaje) { this.margenPorcentaje = margenPorcentaje; }
     public Integer getCantidadStock() { return cantidadStock; }
     public void setCantidadStock(Integer cantidadStock) { this.cantidadStock = cantidadStock; }
     public Integer getStockMinimo() { return stockMinimo; }

@@ -33,12 +33,16 @@ public class AlertaStockController {
                         cat = new CategoriaDTO();
                         cat.setId(p.getCategoria().getId());
                         cat.setNombre(p.getCategoria().getNombre());
+                        String unidad = p.getCategoria().getUnidadMedida();
+                        cat.setUnidadMedida(unidad != null && !unidad.isBlank() ? unidad : "UNIDAD");
                     }
                     return new ProductoResponseDTO(
                             p.getId(),
                             p.getNombre(),
                             p.getDescripcion(),
                             p.getPrecio(),
+                            p.getPrecioCosto(),
+                            p.getMargenPorcentaje(),
                             p.getCantidadStock(),
                             p.getStockMinimo(),
                             p.getMedidas(),
