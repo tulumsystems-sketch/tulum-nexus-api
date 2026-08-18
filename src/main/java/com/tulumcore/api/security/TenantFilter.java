@@ -47,7 +47,8 @@ public class TenantFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
 
         // 2. BYPASS DE RUTAS PÚBLICAS Y EXTERNAS
-        if (path.startsWith("/api/auth") || path.startsWith("/api/webhook") || path.startsWith("/api/external")) {
+        if (path.equals("/health") || path.equals("/api/health")
+                || path.startsWith("/api/auth") || path.startsWith("/api/webhook") || path.startsWith("/api/external")) {
             if (path.startsWith("/api/external")) {
                 String tenantIdHeader = request.getHeader("X-Tenant-ID");
                 if (tenantIdHeader != null && !tenantIdHeader.isEmpty()) {
