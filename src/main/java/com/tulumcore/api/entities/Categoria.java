@@ -13,6 +13,10 @@ public class Categoria extends BaseEntity{
     @Column(nullable = false)
     private String nombre;
 
+    /** Unidad en la que se cuentan los productos de la categoria (UNIDAD, KG, BULTO...). */
+    @Column(length = 20)
+    private String unidadMedida = "UNIDAD";
+
     @JsonIgnore
     @OneToMany(mappedBy = "categoria")
     private List<Producto> productos;
@@ -31,6 +35,14 @@ public class Categoria extends BaseEntity{
 
     public void setNombre(String nombre) {
         this.nombre = nombre;
+    }
+
+    public String getUnidadMedida() {
+        return unidadMedida;
+    }
+
+    public void setUnidadMedida(String unidadMedida) {
+        this.unidadMedida = unidadMedida;
     }
 
     public List<Producto> getProductos() {

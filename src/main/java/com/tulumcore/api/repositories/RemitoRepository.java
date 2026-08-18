@@ -14,5 +14,7 @@ public interface RemitoRepository extends JpaRepository<Remito, Long> {
 
     List<Remito> findByTenantIdAndEstadoIn(String tenantId, List<String> estados);
 
+    List<Remito> findAllByTenantIdAndEstadoPagoOrderByFechaDesc(String tenantId, String estadoPago);
+
     Optional<Remito> findByIdAndTenantId(Long id, String tenantId);
 }

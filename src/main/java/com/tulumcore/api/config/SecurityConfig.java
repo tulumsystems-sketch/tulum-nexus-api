@@ -46,12 +46,21 @@ public class SecurityConfig {
                         .requestMatchers("/api/webhook/**").permitAll()
                         .requestMatchers("/api/external/**").permitAll()
 
-                        // Config: ADMIN, OPERADOR y SUPER_ADMIN pueden leer
+                        // Config: cualquier rol autenticado del tenant puede leerla,
+                        // el front la necesita para armar el menú y la marca
                         .requestMatchers(HttpMethod.GET, "/api/config/**")
-                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "SUPER_ADMIN")
                         // Config: escribir solo ADMIN y SUPER_ADMIN
                         .requestMatchers("/api/config/**")
                         .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Punto de venta: el PREVENTISTA toma pedidos y remitos, no cobra en el mostrador.
+                        // Se bloquea acá y no sólo escondiendo el botón en el front.
+                        .requestMatchers(HttpMethod.POST, "/api/ventas/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/ventas/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers("/api/pagos/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         // Caja: estado, apertura, cierre para ADMIN, OPERADOR, SUPER_ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/caja/estado")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")

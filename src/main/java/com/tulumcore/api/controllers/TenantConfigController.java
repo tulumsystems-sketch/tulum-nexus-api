@@ -1,9 +1,11 @@
 package com.tulumcore.api.controllers;
 
-import com.tulumcore.api.entities.TenantConfig;
-import com.tulumcore.api.repositories.TenantConfigRepository;
 import com.tulumcore.api.config.TenantContext;
+import com.tulumcore.api.entities.TenantConfig;
+import com.tulumcore.api.exceptions.BusinessException;
+import com.tulumcore.api.repositories.TenantConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,32 +16,55 @@ public class TenantConfigController {
     private TenantConfigRepository configRepository;
 
     @GetMapping
-    public TenantConfig getConfig() {
-        String tenant = TenantContext.getCurrentTenant();
-        // Si no existe configuración para este tenant, le creamos una vacía en memoria para el Front
-        return configRepository.findByTenantId(tenant)
-                .orElseGet(TenantConfig::new);
+    public TenantConfigResponseDTO getConfig() {
+        return TenantConfigResponseDTO.from(obtenerOCrearConfig());
     }
 
     @PostMapping
-    public TenantConfig updateConfig(@RequestBody TenantConfig dto) {
+    @Transactional
+    public TenantConfigResponseDTO updateConfig(@RequestBody TenantConfigUpdateDTO dto) {
+        TenantConfig config = obtenerOCrearConfig();
+
+        // null = no tocar. Los wrappers Boolean sí distinguen false de "no vino".
+        if (dto.getNombreEmpresa() != null) config.setNombreEmpresa(dto.getNombreEmpresa());
+        if (dto.getLogoUrl() != null) config.setLogoUrl(dto.getLogoUrl());
+        if (dto.getMpAccessToken() != null && !dto.getMpAccessToken().isBlank()) {
+            config.setMpAccessToken(dto.getMpAccessToken());
+        }
+        if (dto.getMpAceptarCredito() != null) config.setMpAceptarCredito(dto.getMpAceptarCredito());
+        if (dto.getMpAceptarDebito() != null) config.setMpAceptarDebito(dto.getMpAceptarDebito());
+        if (dto.getMpAceptarEfectivo() != null) config.setMpAceptarEfectivo(dto.getMpAceptarEfectivo());
+        if (dto.getClientesHabilitado() != null) config.setClientesHabilitado(dto.getClientesHabilitado());
+        if (dto.getRemitosHabilitado() != null) config.setRemitosHabilitado(dto.getRemitosHabilitado());
+        if (dto.getComprasHabilitado() != null) config.setComprasHabilitado(dto.getComprasHabilitado());
+        if (dto.getStockHabilitado() != null) config.setStockHabilitado(dto.getStockHabilitado());
+        if (dto.getPagoEfectivoHabilitado() != null) config.setPagoEfectivoHabilitado(dto.getPagoEfectivoHabilitado());
+        if (dto.getPagoTransferenciaHabilitado() != null) {
+            config.setPagoTransferenciaHabilitado(dto.getPagoTransferenciaHabilitado());
+        }
+        if (dto.getPagoMercadoPagoHabilitado() != null) {
+            config.setPagoMercadoPagoHabilitado(dto.getPagoMercadoPagoHabilitado());
+        }
+        if (dto.getAliasCobro() != null) config.setAliasCobro(dto.getAliasCobro());
+        if (dto.getIvaPorcentaje() != null) config.setIvaPorcentaje(dto.getIvaPorcentaje());
+        if (Boolean.TRUE.equals(dto.getLimpiarMargenPorDefecto())) {
+            config.setMargenPorDefecto(null);
+        } else if (dto.getMargenPorDefecto() != null) {
+            config.setMargenPorDefecto(dto.getMargenPorDefecto());
+        }
+
+        return TenantConfigResponseDTO.from(configRepository.save(config));
+    }
+
+    private TenantConfig obtenerOCrearConfig() {
         String tenant = TenantContext.getCurrentTenant();
-
-        // Buscamos si ya tiene configuración, si no, creamos una nueva
-        TenantConfig config = configRepository.findByTenantId(tenant)
-                .orElse(new TenantConfig());
-        config.setTenantId(tenant);
-
-        // Actualizamos los valores
-        config.setNombreEmpresa(dto.getNombreEmpresa());
-        config.setLogoUrl(dto.getLogoUrl());
-        config.setMpAccessToken(dto.getMpAccessToken());
-        config.setMpAceptarCredito(dto.isMpAceptarCredito());
-        config.setMpAceptarDebito(dto.isMpAceptarDebito());
-        config.setMpAceptarEfectivo(dto.isMpAceptarEfectivo());
-        config.setClientesHabilitado(dto.isClientesHabilitado());
-        config.setRemitosHabilitado(dto.isRemitosHabilitado());
-
-        return configRepository.save(config);
+        if (tenant == null || tenant.isBlank()) {
+            throw new BusinessException("No hay tenant en la sesion. Volve a iniciar sesion.");
+        }
+        return configRepository.findByTenantId(tenant).orElseGet(() -> {
+            TenantConfig nuevo = new TenantConfig();
+            nuevo.setTenantId(tenant);
+            return nuevo;
+        });
     }
 }

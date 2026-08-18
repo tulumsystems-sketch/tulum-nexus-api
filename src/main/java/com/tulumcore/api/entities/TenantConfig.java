@@ -35,6 +35,21 @@ public class TenantConfig extends BaseEntity {
     @Column(columnDefinition = "boolean default true")
     private boolean mpAceptarEfectivo = true;
 
+    // --- MÉTODOS DE PAGO HABILITADOS EN EL PUNTO DE VENTA ---
+    private boolean pagoEfectivoHabilitado = true;
+    private boolean pagoTransferenciaHabilitado = false;
+    private boolean pagoMercadoPagoHabilitado = true;
+
+    /** Alias / CBU que se imprime en el ticket cuando se cobra por transferencia. */
+    private String aliasCobro;
+
+    // --- POLÍTICA FISCAL Y DE PRECIOS ---
+    /** Porcentaje de IVA aplicado a las ventas. 0 = no se discrimina IVA. */
+    private double ivaPorcentaje = 21.0;
+
+    /** Margen por defecto sobre el precio de costo. null = se carga el precio de venta a mano. */
+    private Double margenPorDefecto;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getNombreEmpresa() { return nombreEmpresa; }
@@ -59,4 +74,16 @@ public class TenantConfig extends BaseEntity {
     public void setStockHabilitado(boolean stockHabilitado) { this.stockHabilitado = stockHabilitado; }
     public boolean isActivo() { return activo; }
     public void setActivo(boolean activo) { this.activo = activo; }
+    public boolean isPagoEfectivoHabilitado() { return pagoEfectivoHabilitado; }
+    public void setPagoEfectivoHabilitado(boolean pagoEfectivoHabilitado) { this.pagoEfectivoHabilitado = pagoEfectivoHabilitado; }
+    public boolean isPagoTransferenciaHabilitado() { return pagoTransferenciaHabilitado; }
+    public void setPagoTransferenciaHabilitado(boolean pagoTransferenciaHabilitado) { this.pagoTransferenciaHabilitado = pagoTransferenciaHabilitado; }
+    public boolean isPagoMercadoPagoHabilitado() { return pagoMercadoPagoHabilitado; }
+    public void setPagoMercadoPagoHabilitado(boolean pagoMercadoPagoHabilitado) { this.pagoMercadoPagoHabilitado = pagoMercadoPagoHabilitado; }
+    public String getAliasCobro() { return aliasCobro; }
+    public void setAliasCobro(String aliasCobro) { this.aliasCobro = aliasCobro; }
+    public double getIvaPorcentaje() { return ivaPorcentaje; }
+    public void setIvaPorcentaje(double ivaPorcentaje) { this.ivaPorcentaje = ivaPorcentaje; }
+    public Double getMargenPorDefecto() { return margenPorDefecto; }
+    public void setMargenPorDefecto(Double margenPorDefecto) { this.margenPorDefecto = margenPorDefecto; }
 }

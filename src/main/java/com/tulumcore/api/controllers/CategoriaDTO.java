@@ -3,6 +3,7 @@ package com.tulumcore.api.controllers;
 public class CategoriaDTO {
     private Long id;
     private String nombre;
+    private String unidadMedida;
 
     public Long getId() {
         return id;
@@ -10,6 +11,14 @@ public class CategoriaDTO {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getUnidadMedida() {
+        return unidadMedida;
+    }
+
+    public void setUnidadMedida(String unidadMedida) {
+        this.unidadMedida = unidadMedida;
     }
 
     public String getNombre() {

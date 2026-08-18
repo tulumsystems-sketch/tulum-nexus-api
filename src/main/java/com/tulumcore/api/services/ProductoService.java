@@ -4,10 +4,12 @@ import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.FeatureKey;
 import com.tulumcore.api.entities.MovementType;
 import com.tulumcore.api.entities.Producto;
+import com.tulumcore.api.entities.TenantConfig;
 import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.ProductoRepository;
+import com.tulumcore.api.repositories.TenantConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,35 @@ public class ProductoService {
 
     @Autowired
     private TenantFeatureService tenantFeatureService;
+
+    @Autowired
+    private TenantConfigRepository tenantConfigRepository;
+
+    /**
+     * Margen configurado para el tenant vigente. null = el tenant carga el precio
+     * de venta a mano y no queremos derivarlo del costo.
+     */
+    public Double getMargenPorDefecto() {
+        String tenant = TenantContext.getCurrentTenant();
+        return tenantConfigRepository.findByTenantId(tenant)
+                .map(TenantConfig::getMargenPorDefecto)
+                .orElse(null);
+    }
+
+    /**
+     * Precio de venta derivado del costo. Devuelve null si falta el costo o si no hay
+     * margen aplicable, para que el llamador respete el precio cargado a mano.
+     */
+    public Double calcularPrecioVenta(Double precioCosto, Double margenProducto) {
+        if (precioCosto == null) {
+            return null;
+        }
+        Double margen = margenProducto != null ? margenProducto : getMargenPorDefecto();
+        if (margen == null) {
+            return null;
+        }
+        return precioCosto * (1 + margen / 100.0);
+    }
 
     public List<Producto> getAllProductos() {
         String tenant = TenantContext.getCurrentTenant();
@@ -65,6 +96,15 @@ public class ProductoService {
         producto.setTenantId(tenant);
         producto.setCodigoBarras(normalizarCodigoBarras(producto.getCodigoBarras()));
         validarCodigoBarrasUnico(producto, tenant);
+
+        // Si sólo llegó el costo, derivamos el precio de venta con el margen del tenant.
+        if (producto.getPrecio() == null) {
+            Double precioDerivado = calcularPrecioVenta(producto.getPrecioCosto(), producto.getMargenPorcentaje());
+            if (precioDerivado == null) {
+                throw new BusinessException("Cargá el precio de venta o el precio de costo con un margen configurado.");
+            }
+            producto.setPrecio(precioDerivado);
+        }
 
         String detalleAnterior = null;
         if (!isNew) {
@@ -111,6 +151,8 @@ public class ProductoService {
         return auditoryLogService.detalle(
                 "nombre", producto.getNombre(),
                 "precio", producto.getPrecio(),
+                "precioCosto", producto.getPrecioCosto(),
+                "margenPorcentaje", producto.getMargenPorcentaje(),
                 "stock", producto.getCantidadStock(),
                 "stockMinimo", producto.getStockMinimo(),
                 "medidas", producto.getMedidas(),

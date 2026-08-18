@@ -24,10 +24,19 @@ import java.util.stream.Collectors;
 @Service
 public class VentaService {
 
+    public static final String EFECTIVO = "EFECTIVO";
+    public static final String TRANSFERENCIA = "TRANSFERENCIA";
+    public static final String MERCADO_PAGO = "MERCADO_PAGO";
+
+    /** IVA aplicado cuando el tenant todavía no tiene una fila de configuración. */
+    private static final double IVA_POR_DEFECTO = 21.0;
+
     @Autowired private VentaRepository ventaRepository;
     @Autowired private ProductoRepository productoRepository;
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private CajaRepository cajaRepository;
+    @Autowired private TenantConfigRepository tenantConfigRepository;
+    @Autowired private CajaService cajaService;
     @Autowired private StockMovementService stockMovementService;
     @Autowired private AuditoryLogService auditoryLogService;
 
@@ -37,10 +46,12 @@ public class VentaService {
         Caja caja = cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant)
                 .orElseThrow(() -> new BusinessException("Debe abrir caja para realizar ventas."));
 
+        TenantConfig config = tenantConfigRepository.findByTenantId(tenant).orElse(null);
+
         Venta venta = new Venta();
         venta.setObservaciones(dto.getObservaciones());
         venta.setMoneda("ARS");
-        venta.setMetodoPago(dto.getMetodoPago() != null ? dto.getMetodoPago() : "MERCADO_PAGO");
+        venta.setMetodoPago(normalizarMetodoPago(dto.getMetodoPago(), config));
         venta.setTenantId(tenant);
 
         if (dto.getClienteId() != null && dto.getClienteId() > 0) {
@@ -79,24 +90,32 @@ public class VentaService {
             subtotal += p.getPrecio() * cantidad;
         }
 
+        // El IVA sale de la configuración del tenant: 0 significa que no se discrimina
+        // y el total final queda igual al subtotal.
+        double ivaPorcentaje = ivaPorcentaje(config);
+        double totalIva = subtotal * ivaPorcentaje / 100.0;
+        double totalFinal = subtotal + totalIva;
+
         venta.setItems(items);
         venta.setTotalNeto(subtotal);
-        venta.setTotalIva(subtotal * 0.21);
-        double totalFinal = subtotal * 1.21;
+        venta.setTotalIva(totalIva);
         venta.setTotalFinal(totalFinal);
+        venta.setEstado("PAGADA");
 
-        if ("EFECTIVO".equalsIgnoreCase(venta.getMetodoPago())) {
-            venta.setEstado("PAGADA");
+        // Cada método de pago va a su propio acumulador: sólo el efectivo entra al cajón.
+        String metodoPago = venta.getMetodoPago();
+        if (EFECTIVO.equals(metodoPago)) {
             double abonado = dto.getMontoAbonado() != null ? dto.getMontoAbonado() : totalFinal;
             venta.setMontoAbonado(abonado);
             venta.setVuelto(Math.max(0, abonado - totalFinal));
             caja.setMontoVentasEfectivo(caja.getMontoVentasEfectivo() + totalFinal);
+        } else if (TRANSFERENCIA.equals(metodoPago)) {
+            caja.setMontoVentasTransferencia(montoOCero(caja.getMontoVentasTransferencia()) + totalFinal);
         } else {
-            venta.setEstado("PAGADA");
             caja.setMontoVentasMP(caja.getMontoVentasMP() + totalFinal);
         }
 
-        caja.setMontoFinalEsperado(caja.getMontoInicial() + caja.getMontoVentasEfectivo());
+        cajaService.recalcularMontoFinalEsperado(caja);
         cajaRepository.save(caja);
 
         Venta saved = ventaRepository.save(venta);
@@ -137,12 +156,17 @@ public class VentaService {
         }
 
         cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant).ifPresent(caja -> {
-            if ("EFECTIVO".equalsIgnoreCase(venta.getMetodoPago())) {
-                caja.setMontoVentasEfectivo(Math.max(0, caja.getMontoVentasEfectivo() - venta.getTotalFinal()));
-                caja.setMontoFinalEsperado(caja.getMontoInicial() + caja.getMontoVentasEfectivo());
+            String metodoPago = normalizarMetodoPago(venta.getMetodoPago(), null);
+            double totalFinal = venta.getTotalFinal() != null ? venta.getTotalFinal() : 0;
+            if (EFECTIVO.equals(metodoPago)) {
+                caja.setMontoVentasEfectivo(Math.max(0, caja.getMontoVentasEfectivo() - totalFinal));
+            } else if (TRANSFERENCIA.equals(metodoPago)) {
+                caja.setMontoVentasTransferencia(
+                        Math.max(0, montoOCero(caja.getMontoVentasTransferencia()) - totalFinal));
             } else {
-                caja.setMontoVentasMP(Math.max(0, caja.getMontoVentasMP() - venta.getTotalFinal()));
+                caja.setMontoVentasMP(Math.max(0, caja.getMontoVentasMP() - totalFinal));
             }
+            cajaService.recalcularMontoFinalEsperado(caja);
             cajaRepository.save(caja);
         });
 
@@ -181,12 +205,10 @@ public class VentaService {
                 .filter(v -> !"ANULADA".equals(v.getEstado()))
                 .toList();
 
-        double ef = validas.stream().filter(v -> "EFECTIVO".equalsIgnoreCase(v.getMetodoPago()))
-                .mapToDouble(Venta::getTotalFinal).sum();
-        double mp = validas.stream().filter(v -> "MERCADO_PAGO".equalsIgnoreCase(v.getMetodoPago()))
-                .mapToDouble(Venta::getTotalFinal).sum();
-
-        return new VentaResumenDTO(LocalDate.now(), ef, mp);
+        return new VentaResumenDTO(LocalDate.now(),
+                totalPorMetodo(validas, EFECTIVO),
+                totalPorMetodo(validas, MERCADO_PAGO),
+                totalPorMetodo(validas, TRANSFERENCIA));
     }
 
     public List<VentaResumenDTO> obtenerResumenSemanal(String tenantId) {
@@ -198,15 +220,50 @@ public class VentaService {
                 .collect(Collectors.groupingBy(v -> v.getFecha().toLocalDate()));
 
         Map<LocalDate, VentaResumenDTO> resumenMap = new TreeMap<>();
-        agrupadas.forEach((fecha, lista) -> {
-            double ef = lista.stream().filter(v -> "EFECTIVO".equalsIgnoreCase(v.getMetodoPago()))
-                    .mapToDouble(Venta::getTotalFinal).sum();
-            double mp = lista.stream().filter(v -> "MERCADO_PAGO".equalsIgnoreCase(v.getMetodoPago()))
-                    .mapToDouble(Venta::getTotalFinal).sum();
-            resumenMap.put(fecha, new VentaResumenDTO(fecha, ef, mp));
-        });
+        agrupadas.forEach((fecha, lista) -> resumenMap.put(fecha, new VentaResumenDTO(fecha,
+                totalPorMetodo(lista, EFECTIVO),
+                totalPorMetodo(lista, MERCADO_PAGO),
+                totalPorMetodo(lista, TRANSFERENCIA))));
 
         return new ArrayList<>(resumenMap.values());
+    }
+
+    private double totalPorMetodo(List<Venta> ventas, String metodoPago) {
+        return ventas.stream()
+                .filter(v -> metodoPago.equals(normalizarMetodoPago(v.getMetodoPago(), null)))
+                .mapToDouble(v -> v.getTotalFinal() != null ? v.getTotalFinal() : 0)
+                .sum();
+    }
+
+    private double ivaPorcentaje(TenantConfig config) {
+        return config != null ? config.getIvaPorcentaje() : IVA_POR_DEFECTO;
+    }
+
+    private double montoOCero(Double monto) {
+        return monto != null ? monto : 0;
+    }
+
+    /**
+     * Deja el método de pago en uno de los tres valores canónicos.
+     * Cuando no llega informado se elige el primero habilitado para el tenant, priorizando
+     * Mercado Pago para no cambiar el comportamiento histórico de quienes lo tienen activo.
+     */
+    private String normalizarMetodoPago(String metodoPago, TenantConfig config) {
+        if (metodoPago != null && !metodoPago.isBlank()) {
+            String normalizado = metodoPago.trim().toUpperCase();
+            if (EFECTIVO.equals(normalizado) || TRANSFERENCIA.equals(normalizado)) {
+                return normalizado;
+            }
+            return MERCADO_PAGO;
+        }
+
+        if (config == null || config.isPagoMercadoPagoHabilitado()) {
+            return MERCADO_PAGO;
+        }
+        if (config.isPagoEfectivoHabilitado()) {
+            return EFECTIVO;
+        }
+        return config.isPagoTransferenciaHabilitado() ? TRANSFERENCIA : EFECTIVO;
     }
 
     private String detalleVenta(Venta venta) {

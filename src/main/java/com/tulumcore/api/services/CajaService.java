@@ -47,6 +47,9 @@ public class CajaService {
         nuevaCaja.setMontoInicial(montoInicial);
         nuevaCaja.setMontoVentasEfectivo(0.0);
         nuevaCaja.setMontoVentasMP(0.0);
+        nuevaCaja.setMontoVentasTransferencia(0.0);
+        nuevaCaja.setMontoCobranzasEfectivo(0.0);
+        nuevaCaja.setMontoCobranzasTransferencia(0.0);
         nuevaCaja.setMontoFinalEsperado(montoInicial);
         nuevaCaja.setEstado("ABIERTA");
         nuevaCaja.setTenantId(tenant);
@@ -74,12 +77,31 @@ public class CajaService {
         return saved;
     }
 
+    /**
+     * Recalcula el efectivo esperado en el cajon: monto inicial + ventas en efectivo
+     * + cobranzas de remitos en efectivo. Las transferencias y Mercado Pago quedan afuera.
+     */
+    public double recalcularMontoFinalEsperado(Caja caja) {
+        double esperado = nz(caja.getMontoInicial())
+                + nz(caja.getMontoVentasEfectivo())
+                + nz(caja.getMontoCobranzasEfectivo());
+        caja.setMontoFinalEsperado(esperado);
+        return esperado;
+    }
+
+    private double nz(Double valor) {
+        return valor != null ? valor : 0.0;
+    }
+
     private String detalleCaja(Caja caja) {
         return auditoryLogService.detalle(
                 "estado", caja.getEstado(),
                 "montoInicial", caja.getMontoInicial(),
                 "montoVentasEfectivo", caja.getMontoVentasEfectivo(),
                 "montoVentasMP", caja.getMontoVentasMP(),
+                "montoVentasTransferencia", caja.getMontoVentasTransferencia(),
+                "montoCobranzasEfectivo", caja.getMontoCobranzasEfectivo(),
+                "montoCobranzasTransferencia", caja.getMontoCobranzasTransferencia(),
                 "montoFinalEsperado", caja.getMontoFinalEsperado(),
                 "montoFinalReal", caja.getMontoFinalReal()
         );
