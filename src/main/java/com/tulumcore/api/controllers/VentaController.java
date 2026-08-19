@@ -24,9 +24,9 @@ public class VentaController {
         return ResponseEntity.ok(ventaService.guardar(dto));
     }
 
-    // ← Este endpoint faltaba — el Dashboard lo usa para el historial
+    /** Listado liviano: sin ítems ni productos. El dashboard no debe pedir el grafo completo. */
     @GetMapping
-    public ResponseEntity<List<Venta>> getAllVentas() {
+    public ResponseEntity<List<VentaListadoDTO>> getAllVentas() {
         String tenant = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(ventaService.getAllVentas(tenant));
     }
@@ -37,14 +37,17 @@ public class VentaController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<Page<Venta>> filtrarVentas(
+    public ResponseEntity<Page<VentaListadoDTO>> filtrarVentas(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
             @RequestParam(required = false) String metodoPago,
             @RequestParam(required = false) String estado,
+            @RequestParam(required = false) Long clienteId,
+            @RequestParam(required = false, defaultValue = "false") boolean whatsapp,
             Pageable pageable) {
         String tenant = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(ventaService.buscarVentas(tenant, desde, hasta, metodoPago, estado, pageable));
+        return ResponseEntity.ok(ventaService.buscarVentas(
+                tenant, desde, hasta, metodoPago, estado, clienteId, whatsapp, pageable));
     }
 
     @GetMapping("/stats/resumen-semanal")
@@ -55,5 +58,15 @@ public class VentaController {
     @GetMapping("/stats/resumen-hoy")
     public ResponseEntity<VentaResumenDTO> getResumenHoy() {
         return ResponseEntity.ok(ventaService.obtenerResumenHoy(TenantContext.getCurrentTenant()));
+    }
+
+    @GetMapping("/stats/totales")
+    public ResponseEntity<VentaTotalesDTO> getTotales() {
+        return ResponseEntity.ok(ventaService.obtenerTotales(TenantContext.getCurrentTenant()));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Venta> getVenta(@PathVariable Long id) {
+        return ResponseEntity.ok(ventaService.obtenerDetalle(id));
     }
 }

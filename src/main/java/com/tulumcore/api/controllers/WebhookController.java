@@ -5,9 +5,9 @@ import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.resources.payment.Payment;
 import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.TenantConfig;
-import com.tulumcore.api.entities.Venta;
 import com.tulumcore.api.repositories.TenantConfigRepository;
 import com.tulumcore.api.repositories.VentaRepository;
+import com.tulumcore.api.security.MercadoPagoWebhookValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,15 +20,35 @@ public class WebhookController {
 
     @Autowired private VentaRepository ventaRepository;
     @Autowired private TenantConfigRepository tenantConfigRepository;
+    @Autowired private MercadoPagoWebhookValidator webhookValidator;
 
     /**
      * MercadoPago envía notificaciones a esta URL cuando un pago cambia de estado.
      * URL configurada en PaymentService: /api/webhook/pagos?tenant={tenantId}
+     * Sin firma válida se ignora: no se marca ninguna venta.
      */
     @PostMapping("/pagos")
     public ResponseEntity<Void> recibirNotificacion(
             @RequestParam String tenant,
+            @RequestParam(name = "data.id", required = false) String dataIdParam,
+            @RequestHeader(value = "x-signature", required = false) String xSignature,
+            @RequestHeader(value = "x-request-id", required = false) String xRequestId,
             @RequestBody Map<String, Object> body) {
+
+        String dataId = dataIdParam;
+        if (dataId == null || dataId.isBlank()) {
+            Object dataObj = body.get("data");
+            if (dataObj instanceof Map<?, ?> data) {
+                Object id = data.get("id");
+                if (id != null) {
+                    dataId = String.valueOf(id);
+                }
+            }
+        }
+
+        if (!webhookValidator.esValida(xSignature, xRequestId, dataId)) {
+            return ResponseEntity.ok().build();
+        }
 
         try {
             String tipo = (String) body.get("type");
@@ -36,13 +56,11 @@ public class WebhookController {
                 return ResponseEntity.ok().build();
             }
 
-            // Obtenemos el ID del pago desde la notificación
             Object dataObj = body.get("data");
             if (!(dataObj instanceof Map)) return ResponseEntity.ok().build();
 
             String paymentId = String.valueOf(((Map<?, ?>) dataObj).get("id"));
 
-            // Configuramos el token del tenant
             TenantContext.setCurrentTenant(tenant);
             TenantConfig config = tenantConfigRepository.findByTenantId(tenant)
                     .orElse(null);
@@ -52,7 +70,6 @@ public class WebhookController {
 
             MercadoPagoConfig.setAccessToken(config.getMpAccessToken());
 
-            // Consultamos el pago real en MercadoPago
             PaymentClient paymentClient = new PaymentClient();
             Payment payment = paymentClient.get(Long.parseLong(paymentId));
 
@@ -61,7 +78,6 @@ public class WebhookController {
 
             if (externalRef == null) return ResponseEntity.ok().build();
 
-            // Buscamos la venta por external_reference (es el ID de venta)
             ventaRepository.findByIdAndTenantId(Long.parseLong(externalRef), tenant).ifPresent(venta -> {
                 if ("approved".equals(status)) {
                     venta.setEstado("PAGADA");

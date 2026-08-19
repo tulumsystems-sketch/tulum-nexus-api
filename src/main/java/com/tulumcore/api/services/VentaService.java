@@ -3,7 +3,9 @@ package com.tulumcore.api.services;
 import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.controllers.ItemVentaDTO;
 import com.tulumcore.api.controllers.VentaDTO;
+import com.tulumcore.api.controllers.VentaListadoDTO;
 import com.tulumcore.api.controllers.VentaResumenDTO;
+import com.tulumcore.api.controllers.VentaTotalesDTO;
 import com.tulumcore.api.entities.*;
 import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
@@ -11,7 +13,9 @@ import com.tulumcore.api.repositories.*;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,8 +47,7 @@ public class VentaService {
     @Transactional
     public Venta guardar(VentaDTO dto) {
         String tenant = TenantContext.getCurrentTenant();
-        Caja caja = cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant)
-                .orElseThrow(() -> new BusinessException("Debe abrir caja para realizar ventas."));
+        Caja caja = cajaService.exigirCajaOperativa();
 
         TenantConfig config = tenantConfigRepository.findByTenantId(tenant).orElse(null);
 
@@ -101,24 +104,14 @@ public class VentaService {
         venta.setTotalIva(totalIva);
         venta.setTotalFinal(totalFinal);
         venta.setEstado("PAGADA");
-
-        // Cada método de pago va a su propio acumulador: sólo el efectivo entra al cajón.
-        String metodoPago = venta.getMetodoPago();
-        if (EFECTIVO.equals(metodoPago)) {
+        if (EFECTIVO.equals(venta.getMetodoPago())) {
             double abonado = dto.getMontoAbonado() != null ? dto.getMontoAbonado() : totalFinal;
             venta.setMontoAbonado(abonado);
             venta.setVuelto(Math.max(0, abonado - totalFinal));
-            caja.setMontoVentasEfectivo(caja.getMontoVentasEfectivo() + totalFinal);
-        } else if (TRANSFERENCIA.equals(metodoPago)) {
-            caja.setMontoVentasTransferencia(montoOCero(caja.getMontoVentasTransferencia()) + totalFinal);
-        } else {
-            caja.setMontoVentasMP(caja.getMontoVentasMP() + totalFinal);
         }
 
-        cajaService.recalcularMontoFinalEsperado(caja);
-        cajaRepository.save(caja);
-
         Venta saved = ventaRepository.save(venta);
+        cajaService.reconstruirTurno(caja);
 
         for (ItemVenta item : saved.getItems()) {
             stockMovementService.registrar(MovementType.VENTA, item.getProducto(), usuario,
@@ -155,23 +148,10 @@ public class VentaService {
                     item.getCantidad(), "Devolucion por anulacion de venta #" + venta.getId(), venta, null);
         }
 
-        cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant).ifPresent(caja -> {
-            String metodoPago = normalizarMetodoPago(venta.getMetodoPago(), null);
-            double totalFinal = venta.getTotalFinal() != null ? venta.getTotalFinal() : 0;
-            if (EFECTIVO.equals(metodoPago)) {
-                caja.setMontoVentasEfectivo(Math.max(0, caja.getMontoVentasEfectivo() - totalFinal));
-            } else if (TRANSFERENCIA.equals(metodoPago)) {
-                caja.setMontoVentasTransferencia(
-                        Math.max(0, montoOCero(caja.getMontoVentasTransferencia()) - totalFinal));
-            } else {
-                caja.setMontoVentasMP(Math.max(0, caja.getMontoVentasMP() - totalFinal));
-            }
-            cajaService.recalcularMontoFinalEsperado(caja);
-            cajaRepository.save(caja);
-        });
-
         venta.setEstado("ANULADA");
         Venta saved = ventaRepository.save(venta);
+        cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant)
+                .ifPresent(cajaService::reconstruirTurno);
         String clienteNombre = saved.getCliente() != null
                 ? saved.getCliente().getNombre() + " " + saved.getCliente().getApellido()
                 : "Consumidor Final";
@@ -180,21 +160,53 @@ public class VentaService {
         return saved;
     }
 
-    public Page<Venta> buscarVentas(String tenantId, LocalDate desde, LocalDate hasta,
-                                    String metodoPago, String estado, Pageable pageable) {
-        return ventaRepository.findAll((Specification<Venta>) (root, query, cb) -> {
+    public Page<VentaListadoDTO> buscarVentas(String tenantId, LocalDate desde, LocalDate hasta,
+                                    String metodoPago, String estado, Long clienteId,
+                                    boolean soloWhatsapp, Pageable pageable) {
+        Pageable ordenado = pageable;
+        if (pageable == null || pageable.getSort().isUnsorted()) {
+            int page = pageable != null ? pageable.getPageNumber() : 0;
+            int size = pageable != null ? pageable.getPageSize() : 20;
+            ordenado = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "fecha"));
+        }
+        Page<Venta> page = ventaRepository.findAll((Specification<Venta>) (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("tenantId"), tenantId));
             if (desde != null) predicates.add(cb.greaterThanOrEqualTo(root.get("fecha"), desde.atStartOfDay()));
             if (hasta != null) predicates.add(cb.lessThanOrEqualTo(root.get("fecha"), hasta.atTime(23, 59, 59)));
             if (metodoPago != null && !metodoPago.isEmpty()) predicates.add(cb.equal(root.get("metodoPago"), metodoPago));
             if (estado != null && !estado.isEmpty()) predicates.add(cb.equal(root.get("estado"), estado));
+            if (clienteId != null) predicates.add(cb.equal(root.get("cliente").get("id"), clienteId));
+            if (soloWhatsapp) {
+                predicates.add(cb.like(cb.lower(cb.coalesce(root.get("observaciones"), "")),
+                        "%pedido automático vía whatsapp%"));
+            }
             return cb.and(predicates.toArray(new Predicate[0]));
-        }, pageable);
+        }, ordenado);
+        return page.map(VentaListadoDTO::desde);
     }
 
-    public List<Venta> getAllVentas(String tenantId) {
-        return ventaRepository.findByTenantId(tenantId);
+    public List<VentaListadoDTO> getAllVentas(String tenantId) {
+        return buscarVentas(tenantId, null, null, null, null, null, false,
+                PageRequest.of(0, 50, Sort.by(Sort.Direction.DESC, "fecha"))).getContent();
+    }
+
+    @Transactional(readOnly = true)
+    public Venta obtenerDetalle(Long id) {
+        String tenant = TenantContext.getCurrentTenant();
+        return ventaRepository.findDetalleByIdAndTenantId(id, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada con id: " + id));
+    }
+
+    public VentaTotalesDTO obtenerTotales(String tenantId) {
+        List<Object[]> filas = ventaRepository.totalesNoAnuladas(tenantId);
+        if (filas == null || filas.isEmpty() || filas.get(0) == null) {
+            return new VentaTotalesDTO(0, 0);
+        }
+        Object[] fila = filas.get(0);
+        long cantidad = fila[0] instanceof Number ? ((Number) fila[0]).longValue() : 0;
+        double ingresos = fila[1] instanceof Number ? ((Number) fila[1]).doubleValue() : 0;
+        return new VentaTotalesDTO(cantidad, ingresos);
     }
 
     public VentaResumenDTO obtenerResumenHoy(String tenantId) {
@@ -237,10 +249,6 @@ public class VentaService {
 
     private double ivaPorcentaje(TenantConfig config) {
         return config != null ? config.getIvaPorcentaje() : IVA_POR_DEFECTO;
-    }
-
-    private double montoOCero(Double monto) {
-        return monto != null ? monto : 0;
     }
 
     /**

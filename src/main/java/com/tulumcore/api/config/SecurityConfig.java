@@ -42,9 +42,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Rutas públicas
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/health", "/api/health").permitAll()
+                        .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/webhook/**").permitAll()
-                        .requestMatchers("/api/external/**").permitAll()
+                        .requestMatchers("/api/external/**").authenticated()
 
                         // Config: cualquier rol autenticado del tenant puede leerla,
                         // el front la necesita para armar el menú y la marca
@@ -60,6 +61,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/ventas/**")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         .requestMatchers("/api/pagos/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        // Cobranzas de remitos: el preventista arma hojas de ruta, no cobra.
+                        .requestMatchers("/api/remitos/cobranzas/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/remitos/*/pagos")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/remitos/*/pagos")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         // Caja: estado, apertura, cierre para ADMIN, OPERADOR, SUPER_ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/caja/estado")
@@ -106,7 +114,8 @@ public class SecurityConfig {
                 "X-Requested-With",
                 "Accept",
                 "Origin",
-                "X-Tenant-ID"
+                "X-Tenant-ID",
+                "X-Bot-Secret"
         ));
 
         configuration.setAllowCredentials(true);
