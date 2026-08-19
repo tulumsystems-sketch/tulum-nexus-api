@@ -15,7 +15,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -33,9 +32,6 @@ public class AuthController {
     private UsuarioRepository usuarioRepository;
 
     @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
     private TenantConfigRepository tenantConfigRepository;
 
     @Value("${jwt.expiration-ms}")
@@ -46,55 +42,6 @@ public class AuthController {
 
     public AuthController(AuthenticationManager authenticationManager) {
         this.authenticationManager = authenticationManager;
-    }
-
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequestDTO req) {
-        if (req.tenant() == null || req.tenant().isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "El campo tenant es obligatorio"));
-        }
-        if (req.email() == null || req.email().isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "El campo email es obligatorio"));
-        }
-        if (req.password() == null || req.password().length() < 6) {
-            return ResponseEntity.badRequest().body(Map.of("error", "La contraseña debe tener al menos 6 caracteres"));
-        }
-
-        try {
-            TenantContext.setCurrentTenant(req.tenant());
-
-            if (usuarioRepository.findByEmailAndTenantId(req.email(), req.tenant()).isPresent()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Ya existe un usuario con ese email"));
-            }
-
-            Usuario usuario = new Usuario();
-            usuario.setEmail(req.email());
-            usuario.setPassword(passwordEncoder.encode(req.password()));
-            usuario.setRol(Rol.ADMIN);
-            usuario.setTenantId(req.tenant());
-            usuarioRepository.save(usuario);
-
-            TenantConfig config = new TenantConfig();
-            config.setNombreEmpresa(req.companyName() != null ? req.companyName() : req.tenant());
-            config.setTenantId(req.tenant());
-            tenantConfigRepository.save(config);
-
-            String jwt = jwtService.generateToken(req.email(), req.tenant(), Rol.ADMIN.name());
-
-            return ResponseEntity.ok(Map.of(
-                "token", jwt,
-                "rol", Rol.ADMIN.name(),
-                "email", req.email(),
-                "tenant", req.tenant(),
-                "expiresInMs", jwtExpirationMs,
-                "inactividadMinutos", inactividadMinutos
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Error al registrar: " + e.getMessage()));
-        } finally {
-            TenantContext.clear();
-        }
     }
 
     @PostMapping("/login")
@@ -119,6 +66,11 @@ public class AuthController {
             // 4. Buscar el usuario
             Usuario usuario = usuarioRepository.findByEmailAndTenantId(loginRequest.email(), loginRequest.tenant())
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+            if (!comercioActivo(loginRequest.tenant(), usuario.getRol())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Comercio inactivo"));
+            }
 
             // 5. Generar Token
             String jwt = jwtService.generateToken(
@@ -146,5 +98,14 @@ public class AuthController {
         } finally {
             TenantContext.clear();
         }
+    }
+
+    private boolean comercioActivo(String tenantId, Rol rol) {
+        if (rol == Rol.SUPER_ADMIN) {
+            return true;
+        }
+        return tenantConfigRepository.findByTenantId(tenantId)
+                .map(TenantConfig::isActivo)
+                .orElse(false);
     }
 }

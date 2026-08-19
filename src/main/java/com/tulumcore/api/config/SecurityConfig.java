@@ -43,9 +43,9 @@ public class SecurityConfig {
                         // Rutas públicas
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/health", "/api/health").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/webhook/**").permitAll()
-                        .requestMatchers("/api/external/**").permitAll()
+                        .requestMatchers("/api/external/**").authenticated()
 
                         // Config: cualquier rol autenticado del tenant puede leerla,
                         // el front la necesita para armar el menú y la marca
@@ -114,7 +114,8 @@ public class SecurityConfig {
                 "X-Requested-With",
                 "Accept",
                 "Origin",
-                "X-Tenant-ID"
+                "X-Tenant-ID",
+                "X-Bot-Secret"
         ));
 
         configuration.setAllowCredentials(true);
