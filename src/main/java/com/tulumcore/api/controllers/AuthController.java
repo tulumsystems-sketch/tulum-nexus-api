@@ -8,6 +8,7 @@ import com.tulumcore.api.repositories.TenantConfigRepository;
 import com.tulumcore.api.repositories.UsuarioRepository;
 import com.tulumcore.api.security.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -36,6 +37,12 @@ public class AuthController {
 
     @Autowired
     private TenantConfigRepository tenantConfigRepository;
+
+    @Value("${jwt.expiration-ms}")
+    private long jwtExpirationMs;
+
+    @Value("${app.sesion.inactividad-minutos:30}")
+    private int inactividadMinutos;
 
     public AuthController(AuthenticationManager authenticationManager) {
         this.authenticationManager = authenticationManager;
@@ -78,7 +85,9 @@ public class AuthController {
                 "token", jwt,
                 "rol", Rol.ADMIN.name(),
                 "email", req.email(),
-                "tenant", req.tenant()
+                "tenant", req.tenant(),
+                "expiresInMs", jwtExpirationMs,
+                "inactividadMinutos", inactividadMinutos
             ));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -123,7 +132,9 @@ public class AuthController {
                     "token", jwt,
                     "rol", usuario.getRol().name(),
                     "email", usuario.getEmail(),
-                    "tenant", loginRequest.tenant()
+                    "tenant", loginRequest.tenant(),
+                    "expiresInMs", jwtExpirationMs,
+                    "inactividadMinutos", inactividadMinutos
             ));
 
         } catch (BadCredentialsException e) {

@@ -11,6 +11,7 @@ import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.ProductoRepository;
 import com.tulumcore.api.repositories.TenantConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,9 +76,9 @@ public class ProductoService {
         String tenant = TenantContext.getCurrentTenant();
         String normalizedQuery = query != null ? query.trim() : "";
         if (normalizedQuery.isEmpty()) {
-            return productoRepository.findAllByTenantId(tenant);
+            return List.of();
         }
-        return productoRepository.findByNombreContainingIgnoreCaseAndTenantId(normalizedQuery, tenant);
+        return productoRepository.buscarCatalogo(tenant, normalizedQuery, PageRequest.of(0, 40));
     }
 
     public Optional<Producto> buscarPorCodigoBarras(String codigoBarras) {

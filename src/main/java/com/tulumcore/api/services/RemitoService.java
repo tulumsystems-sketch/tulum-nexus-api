@@ -34,7 +34,6 @@ public class RemitoService {
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private ProductoRepository productoRepository;
     @Autowired private PagoRemitoRepository pagoRemitoRepository;
-    @Autowired private CajaRepository cajaRepository;
     @Autowired private CajaService cajaService;
     @Autowired private StockMovementService stockMovementService;
     @Autowired private AuditoryLogService auditoryLogService;
@@ -217,9 +216,10 @@ public class RemitoService {
                     + String.format("%.2f", saldo) + ".");
         }
 
-        Caja caja = cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant).orElse(null);
+        Caja caja = cajaService.obtenerCajaAbiertaActualizada().orElse(null);
         if (caja == null && "EFECTIVO".equals(metodoPago)) {
-            throw new BusinessException("Debe abrir caja para registrar cobranzas en efectivo.");
+            throw new BusinessException("Debe abrir caja para registrar cobranzas en efectivo. "
+                    + "Si el turno anterior cumplió el día, se cerró automáticamente.");
         }
 
         Usuario usuario = null;
@@ -248,13 +248,7 @@ public class RemitoService {
         Remito saved = remitoRepository.save(remito);
 
         if (caja != null) {
-            if ("EFECTIVO".equals(metodoPago)) {
-                caja.setMontoCobranzasEfectivo(redondear(nz(caja.getMontoCobranzasEfectivo()) + monto));
-            } else {
-                caja.setMontoCobranzasTransferencia(redondear(nz(caja.getMontoCobranzasTransferencia()) + monto));
-            }
-            cajaService.recalcularMontoFinalEsperado(caja);
-            cajaRepository.save(caja);
+            cajaService.reconstruirTurno(caja);
         }
 
         auditoryLogService.registrar("CREATE", "PAGO_REMITO", pagoGuardado.getId(),

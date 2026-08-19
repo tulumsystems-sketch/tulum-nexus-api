@@ -2,6 +2,7 @@ package com.tulumcore.api.entities;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "cajas")
@@ -32,9 +33,25 @@ public class Caja extends BaseEntity {
 
     private String estado; // "ABIERTA" o "CERRADA"
 
+    /** true si el sistema cerro el turno a las 24h, sin arqueo fisico. */
+    private Boolean cierreAutomatico = false;
+
+    @Column(length = 500)
+    private String motivoCierre;
+
     @ManyToOne
     @JoinColumn(name = "usuario_apertura_id")
     private Usuario usuarioApertura;
+
+    @Transient
+    private Boolean expirada;
+    @Transient
+    private Double horasAbierta;
+    @Transient
+    private Integer limiteHoras;
+
+    @Transient
+    private List<CajaDescargo> descargos;
 
     // --- Getters y Setters ---
 
@@ -74,6 +91,21 @@ public class Caja extends BaseEntity {
     public String getEstado() { return estado; }
     public void setEstado(String estado) { this.estado = estado; }
 
+    public Boolean getCierreAutomatico() { return cierreAutomatico; }
+    public void setCierreAutomatico(Boolean cierreAutomatico) { this.cierreAutomatico = cierreAutomatico; }
+    public String getMotivoCierre() { return motivoCierre; }
+    public void setMotivoCierre(String motivoCierre) { this.motivoCierre = motivoCierre; }
+
     public Usuario getUsuarioApertura() { return usuarioApertura; }
     public void setUsuarioApertura(Usuario usuarioApertura) { this.usuarioApertura = usuarioApertura; }
+
+    public Boolean getExpirada() { return expirada; }
+    public void setExpirada(Boolean expirada) { this.expirada = expirada; }
+    public Double getHorasAbierta() { return horasAbierta; }
+    public void setHorasAbierta(Double horasAbierta) { this.horasAbierta = horasAbierta; }
+    public Integer getLimiteHoras() { return limiteHoras; }
+    public void setLimiteHoras(Integer limiteHoras) { this.limiteHoras = limiteHoras; }
+
+    public List<CajaDescargo> getDescargos() { return descargos; }
+    public void setDescargos(List<CajaDescargo> descargos) { this.descargos = descargos; }
 }

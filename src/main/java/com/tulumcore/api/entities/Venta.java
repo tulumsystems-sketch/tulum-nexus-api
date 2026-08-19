@@ -31,7 +31,7 @@ public class Venta extends BaseEntity {
     private Cliente cliente;
 
     @JsonManagedReference
-    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ItemVenta> items;
 
     public Long getId() { return id; }
