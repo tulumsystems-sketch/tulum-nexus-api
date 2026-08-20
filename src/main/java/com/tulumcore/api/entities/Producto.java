@@ -3,6 +3,7 @@ package com.tulumcore.api.entities;
 import jakarta.persistence.*;
 
 @Entity
+@Table(name = "producto")
 public class Producto extends BaseEntity {
 
     @Id
