@@ -45,7 +45,7 @@ public class UsuarioController {
         Usuario nuevo = new Usuario();
         nuevo.setEmail(dto.email());
         nuevo.setPassword(passwordEncoder.encode(dto.password()));
-        nuevo.setRol(dto.rol() != null ? Rol.valueOf(dto.rol()) : Rol.OPERADOR);
+        nuevo.setRol(rolAsignableEnTenant(dto.rol()));
         nuevo.setTenantId(tenant);
 
         Usuario guardado = usuarioRepository.save(nuevo);
@@ -60,7 +60,7 @@ public class UsuarioController {
         Usuario usuario = usuarioRepository.findByIdAndTenantId(id, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
 
-        usuario.setRol(Rol.valueOf(dto.rol()));
+        usuario.setRol(rolAsignableEnTenant(dto.rol()));
         usuarioRepository.save(usuario);
 
         return new UsuarioResponseDTO(usuario.getId(), usuario.getEmail(), usuario.getRol().name());
@@ -76,5 +76,21 @@ public class UsuarioController {
 
         usuarioRepository.delete(usuario);
         return ResponseEntity.noContent().build();
+    }
+
+    private Rol rolAsignableEnTenant(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Rol.OPERADOR;
+        }
+        final Rol rol;
+        try {
+            rol = Rol.valueOf(raw.trim());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("Rol invalido.");
+        }
+        if (rol == Rol.SUPER_ADMIN) {
+            throw new BusinessException("No se puede asignar SUPER_ADMIN desde el comercio.");
+        }
+        return rol;
     }
 }

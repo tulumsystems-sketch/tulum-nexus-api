@@ -55,26 +55,25 @@ public class CompraService {
         List<Remito> remitosPendientes = remitoRepository.findByTenantIdAndEstadoIn(tenant, List.of("PENDIENTE", "EN_VIAJE"));
         
         // 3. Calcular demanda por producto
-        Map<Long, Integer> demandaPorProducto = new HashMap<>();
+        Map<Long, Double> demandaPorProducto = new HashMap<>();
         for (Remito r : remitosPendientes) {
             if (r.getItems() != null) {
                 for (ItemRemito item : r.getItems()) {
                     if (item.getProducto() != null) {
-                        demandaPorProducto.merge(item.getProducto().getId(), item.getCantidad() != null ? item.getCantidad() : 0, Integer::sum);
+                        demandaPorProducto.merge(item.getProducto().getId(), item.getCantidad() != null ? item.getCantidad() : 0d, Double::sum);
                     }
                 }
             }
         }
-        
-        // 4. Calcular faltantes comparando stock actual, demanda y stock mínimo
+
         List<Map<String, Object>> sugerencias = new ArrayList<>();
         for (Producto p : productos) {
-            int stockActual = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
+            double stockActual = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
             int stockMinimo = p.getStockMinimo() != null ? p.getStockMinimo() : 0;
-            int demandaRemitos = demandaPorProducto.getOrDefault(p.getId(), 0);
+            double demandaRemitos = demandaPorProducto.getOrDefault(p.getId(), 0d);
             
             // Formula: Faltante = Demanda de Remitos + Stock Mínimo - Stock Actual
-            int sugerido = demandaRemitos + stockMinimo - stockActual;
+            double sugerido = demandaRemitos + stockMinimo - stockActual;
             
             if (sugerido > 0) {
                 Map<String, Object> sug = new HashMap<>();

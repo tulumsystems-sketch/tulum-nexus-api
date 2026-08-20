@@ -23,7 +23,7 @@ public class StockMovement extends BaseEntity {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
-    private Integer cantidad;
+    private Double cantidad;
 
     private LocalDateTime fecha = LocalDateTime.now();
 
@@ -49,8 +49,8 @@ public class StockMovement extends BaseEntity {
     public void setProducto(Producto producto) { this.producto = producto; }
     public Usuario getUsuario() { return usuario; }
     public void setUsuario(Usuario usuario) { this.usuario = usuario; }
-    public Integer getCantidad() { return cantidad; }
-    public void setCantidad(Integer cantidad) { this.cantidad = cantidad; }
+    public Double getCantidad() { return cantidad; }
+    public void setCantidad(Double cantidad) { this.cantidad = cantidad; }
     public LocalDateTime getFecha() { return fecha; }
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
     public String getMotivo() { return motivo; }

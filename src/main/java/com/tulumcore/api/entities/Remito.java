@@ -38,7 +38,7 @@ public class Remito extends BaseEntity {
     private Cliente cliente;
 
     @JsonManagedReference
-    @OneToMany(mappedBy = "remito", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "remito", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<ItemRemito> items;
 
     // --- Getters y Setters ---

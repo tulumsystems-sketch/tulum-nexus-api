@@ -35,10 +35,12 @@ public class DashboardController {
 
         List<Producto> productos = productoRepository.findAllByTenantId(tenant);
         int totalProductos = productos.size();
-        int stockTotal = productos.stream().mapToInt(p -> p.getCantidadStock() != null ? p.getCantidadStock() : 0).sum();
+        double stockTotal = productos.stream()
+                .mapToDouble(p -> p.getCantidadStock() != null ? p.getCantidadStock() : 0)
+                .sum();
         long bajoStock = productos.stream()
                 .filter(p -> p.getStockMinimo() != null && p.getStockMinimo() > 0
-                        && p.getCantidadStock() <= p.getStockMinimo())
+                        && (p.getCantidadStock() != null ? p.getCantidadStock() : 0) <= p.getStockMinimo())
                 .count();
 
         LocalDateTime inicioMes = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
@@ -53,7 +55,7 @@ public class DashboardController {
 
         List<Producto> criticos = productos.stream()
                 .filter(p -> p.getStockMinimo() != null && p.getStockMinimo() > 0
-                        && p.getCantidadStock() <= p.getStockMinimo())
+                        && (p.getCantidadStock() != null ? p.getCantidadStock() : 0) <= p.getStockMinimo())
                 .toList();
 
         Map<String, Object> resumen = new LinkedHashMap<>();

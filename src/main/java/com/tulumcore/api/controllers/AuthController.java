@@ -2,19 +2,18 @@ package com.tulumcore.api.controllers;
 
 import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.Rol;
-import com.tulumcore.api.entities.TenantConfig;
 import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.repositories.TenantConfigRepository;
 import com.tulumcore.api.repositories.UsuarioRepository;
 import com.tulumcore.api.security.JwtService;
+import com.tulumcore.api.security.LoginAttemptService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -32,108 +31,95 @@ public class AuthController {
     private UsuarioRepository usuarioRepository;
 
     @Autowired
-    private PasswordEncoder passwordEncoder;
+    private TenantConfigRepository tenantConfigRepository;
 
     @Autowired
-    private TenantConfigRepository tenantConfigRepository;
+    private LoginAttemptService loginAttemptService;
+
+    @Value("${jwt.expiration-ms}")
+    private long jwtExpirationMs;
+
+    @Value("${app.sesion.inactividad-minutos:30}")
+    private int inactividadMinutos;
 
     public AuthController(AuthenticationManager authenticationManager) {
         this.authenticationManager = authenticationManager;
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequestDTO req) {
-        if (req.tenant() == null || req.tenant().isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "El campo tenant es obligatorio"));
-        }
-        if (req.email() == null || req.email().isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "El campo email es obligatorio"));
-        }
-        if (req.password() == null || req.password().length() < 6) {
-            return ResponseEntity.badRequest().body(Map.of("error", "La contraseña debe tener al menos 6 caracteres"));
-        }
-
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequestDTO loginRequest) {
+        String claveIntento = claveLogin(loginRequest);
         try {
-            TenantContext.setCurrentTenant(req.tenant());
-
-            if (usuarioRepository.findByEmailAndTenantId(req.email(), req.tenant()).isPresent()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Ya existe un usuario con ese email"));
+            if (loginRequest.tenant() == null || loginRequest.tenant().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "El campo empresa (tenant) es obligatorio"));
             }
 
-            Usuario usuario = new Usuario();
-            usuario.setEmail(req.email());
-            usuario.setPassword(passwordEncoder.encode(req.password()));
-            usuario.setRol(Rol.ADMIN);
-            usuario.setTenantId(req.tenant());
-            usuarioRepository.save(usuario);
+            if (loginAttemptService.estaBloqueado(claveIntento)) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(Map.of("error", "Demasiados intentos. Proba de nuevo en unos minutos."));
+            }
 
-            TenantConfig config = new TenantConfig();
-            config.setNombreEmpresa(req.companyName() != null ? req.companyName() : req.tenant());
-            config.setTenantId(req.tenant());
-            tenantConfigRepository.save(config);
+            String tenant = loginRequest.tenant().trim().toLowerCase();
+            String email = loginRequest.email() != null ? loginRequest.email().trim() : "";
+            TenantContext.setCurrentTenant(tenant);
 
-            String jwt = jwtService.generateToken(req.email(), req.tenant(), Rol.ADMIN.name());
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            email,
+                            loginRequest.password()
+                    )
+            );
+
+            Usuario usuario = usuarioRepository.findByEmailAndTenantId(email, tenant)
+                    .orElse(null);
+            if (usuario == null) {
+                loginAttemptService.registrarFallo(claveIntento);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Email o contraseña incorrectos"));
+            }
+
+            if (!comercioActivo(tenant, usuario.getRol())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Comercio inactivo"));
+            }
+
+            loginAttemptService.registrarExito(claveIntento);
+
+            String jwt = jwtService.generateToken(
+                    usuario.getEmail(),
+                    tenant,
+                    usuario.getRol().name()
+            );
 
             return ResponseEntity.ok(Map.of(
-                "token", jwt,
-                "rol", Rol.ADMIN.name(),
-                "email", req.email(),
-                "tenant", req.tenant()
+                    "token", jwt,
+                    "rol", usuario.getRol().name(),
+                    "email", usuario.getEmail(),
+                    "tenant", tenant,
+                    "expiresInMs", jwtExpirationMs,
+                    "inactividadMinutos", inactividadMinutos
             ));
+
+        } catch (AuthenticationException e) {
+            loginAttemptService.registrarFallo(claveIntento);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Email o contraseña incorrectos"));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Error al registrar: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Error interno"));
         } finally {
             TenantContext.clear();
         }
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequestDTO loginRequest) {
-        try {
-            // 1. Validar que la empresa (tenant) venga en el body
-            if (loginRequest.tenant() == null || loginRequest.tenant().isEmpty()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "El campo empresa (tenant) es obligatorio"));
-            }
+    private String claveLogin(LoginRequestDTO loginRequest) {
+        String tenant = loginRequest != null && loginRequest.tenant() != null ? loginRequest.tenant().trim().toLowerCase() : "";
+        String email = loginRequest != null && loginRequest.email() != null ? loginRequest.email().trim().toLowerCase() : "";
+        return tenant + "|" + email;
+    }
 
-            // 2. Setear TenantContext para que el @TenantId de Hibernate filtre correctamente
-            TenantContext.setCurrentTenant(loginRequest.tenant());
-
-            // 3. Intentar autenticar con Spring Security
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginRequest.email(),
-                            loginRequest.password()
-                    )
-            );
-
-            // 4. Buscar el usuario
-            Usuario usuario = usuarioRepository.findByEmailAndTenantId(loginRequest.email(), loginRequest.tenant())
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-            // 5. Generar Token
-            String jwt = jwtService.generateToken(
-                    loginRequest.email(),
-                    loginRequest.tenant(),
-                    usuario.getRol().name()
-            );
-
-            // 6. Respuesta exitosa
-            return ResponseEntity.ok(Map.of(
-                    "token", jwt,
-                    "rol", usuario.getRol().name(),
-                    "email", usuario.getEmail(),
-                    "tenant", loginRequest.tenant()
-            ));
-
-        } catch (BadCredentialsException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Email o contraseña incorrectos"));
-        } catch (AuthenticationException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "No autorizado: " + e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Error interno: " + e.getMessage()));
-        } finally {
-            TenantContext.clear();
+    private boolean comercioActivo(String tenantId, Rol rol) {
+        if (rol == Rol.SUPER_ADMIN) {
+            return true;
         }
+        return Boolean.TRUE.equals(tenantConfigRepository.findActivoNativo(tenantId));
     }
 }

@@ -34,7 +34,6 @@ public class RemitoService {
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private ProductoRepository productoRepository;
     @Autowired private PagoRemitoRepository pagoRemitoRepository;
-    @Autowired private CajaRepository cajaRepository;
     @Autowired private CajaService cajaService;
     @Autowired private StockMovementService stockMovementService;
     @Autowired private AuditoryLogService auditoryLogService;
@@ -78,6 +77,10 @@ public class RemitoService {
         remito.setObservaciones(dto.getObservaciones());
         remito.setEstado("PENDIENTE");
 
+        if (dto.getItems() == null || dto.getItems().isEmpty()) {
+            throw new BusinessException("El remito debe tener al menos un item.");
+        }
+
         if (dto.getClienteId() != null) {
             Cliente cliente = clienteRepository.findByIdAndTenantId(dto.getClienteId(), tenant)
                     .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
@@ -87,28 +90,8 @@ public class RemitoService {
         List<ItemRemito> items = new ArrayList<>();
         double totalRemito = 0.0;
         for (ItemRemitoDTO itemDto : dto.getItems()) {
-            ItemRemito item = new ItemRemito();
-            item.setRemito(remito);
-            int cantidad = itemDto.getCantidad() != null ? itemDto.getCantidad() : 0;
-            item.setCantidad(cantidad);
-            item.setDescripcion(itemDto.getDescripcion());
-            item.setTenantId(tenant);
-            item.setPrecioUnitario(0.0);
-            item.setTotalLinea(0.0);
-
-            if (itemDto.getProductoId() != null) {
-                Producto producto = productoRepository.findByIdAndTenantId(itemDto.getProductoId(), tenant)
-                        .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
-                item.setProducto(producto);
-                if (item.getDescripcion() == null) {
-                    item.setDescripcion(producto.getNombre());
-                }
-                double precioUnitario = producto.getPrecio() != null ? producto.getPrecio() : 0.0;
-                double totalLinea = precioUnitario * cantidad;
-                item.setPrecioUnitario(precioUnitario);
-                item.setTotalLinea(totalLinea);
-                totalRemito += totalLinea;
-            }
+            ItemRemito item = armarItem(itemDto, remito, tenant);
+            totalRemito += nz(item.getTotalLinea());
             items.add(item);
         }
 
@@ -122,6 +105,80 @@ public class RemitoService {
                 "Remito #" + saved.getNroRemito() + " creado - " +
                         (saved.getNombreDestinatario() != null ? saved.getNombreDestinatario() : "Sin destinatario"),
                 null, detalleRemito(saved));
+        return saved;
+    }
+
+    @Transactional
+    public Remito actualizar(Long id, RemitoDTO dto) {
+        String tenant = TenantContext.getCurrentTenant();
+        Remito remito = remitoRepository.findByIdAndTenantId(id, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Remito no encontrado con id: " + id));
+
+        if (dto.getItems() == null || dto.getItems().isEmpty()) {
+            throw new BusinessException("El remito debe tener al menos un item.");
+        }
+
+        String detalleAnterior = detalleRemito(remito);
+        Map<Long, Double> stockAnterior = cantidadesPorProducto(remito);
+        boolean yaEntregado = "ENTREGADO".equals(remito.getEstado());
+
+        remito.setDireccionEntrega(dto.getDireccionEntrega());
+        remito.setNombreDestinatario(dto.getNombreDestinatario());
+        remito.setTelefonoDestinatario(dto.getTelefonoDestinatario());
+        remito.setObservaciones(dto.getObservaciones());
+
+        if (dto.getClienteId() != null) {
+            Cliente cliente = clienteRepository.findByIdAndTenantId(dto.getClienteId(), tenant)
+                    .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+            remito.setCliente(cliente);
+        } else {
+            remito.setCliente(null);
+        }
+
+        if (remito.getItems() == null) {
+            remito.setItems(new ArrayList<>());
+        } else {
+            remito.getItems().clear();
+        }
+
+        double totalRemito = 0.0;
+        for (ItemRemitoDTO itemDto : dto.getItems()) {
+            ItemRemito item = armarItem(itemDto, remito, tenant);
+            totalRemito += nz(item.getTotalLinea());
+            remito.getItems().add(item);
+        }
+
+        remito.setTotal(totalRemito);
+        double pagado = nz(remito.getMontoPagado());
+        if (pagado > totalRemito + TOLERANCIA) {
+            throw new BusinessException("El remito ya tiene cobros por "
+                    + String.format("%.2f", pagado)
+                    + " y el nuevo total es menor. Ajusta los cobros antes de editar.");
+        }
+        remito.setSaldoPendiente(Math.max(0, totalRemito - pagado));
+        if (totalRemito <= TOLERANCIA) {
+            remito.setEstadoPago("PAGADO");
+        } else if (pagado <= TOLERANCIA) {
+            remito.setEstadoPago("IMPAGO");
+        } else if (pagado + TOLERANCIA >= totalRemito) {
+            remito.setEstadoPago("PAGADO");
+        } else {
+            remito.setEstadoPago("PAGADO_PARCIAL");
+        }
+
+        if (yaEntregado) {
+            validarStockParaEntrega(remito, stockAnterior);
+        }
+
+        Remito saved = remitoRepository.save(remito);
+
+        if (yaEntregado) {
+            ajustarStockPorEdicion(saved, stockAnterior);
+        }
+
+        auditoryLogService.registrar("UPDATE", "REMITO", saved.getId(),
+                "Remito #" + saved.getNroRemito() + " editado",
+                detalleAnterior, detalleRemito(saved));
         return saved;
     }
 
@@ -217,9 +274,10 @@ public class RemitoService {
                     + String.format("%.2f", saldo) + ".");
         }
 
-        Caja caja = cajaRepository.findByEstadoAndTenantId("ABIERTA", tenant).orElse(null);
+        Caja caja = cajaService.obtenerCajaAbiertaActualizada().orElse(null);
         if (caja == null && "EFECTIVO".equals(metodoPago)) {
-            throw new BusinessException("Debe abrir caja para registrar cobranzas en efectivo.");
+            throw new BusinessException("Debe abrir caja para registrar cobranzas en efectivo. "
+                    + "Si el turno anterior cumplió el día, se cerró automáticamente.");
         }
 
         Usuario usuario = null;
@@ -248,13 +306,7 @@ public class RemitoService {
         Remito saved = remitoRepository.save(remito);
 
         if (caja != null) {
-            if ("EFECTIVO".equals(metodoPago)) {
-                caja.setMontoCobranzasEfectivo(redondear(nz(caja.getMontoCobranzasEfectivo()) + monto));
-            } else {
-                caja.setMontoCobranzasTransferencia(redondear(nz(caja.getMontoCobranzasTransferencia()) + monto));
-            }
-            cajaService.recalcularMontoFinalEsperado(caja);
-            cajaRepository.save(caja);
+            cajaService.reconstruirTurno(caja);
         }
 
         auditoryLogService.registrar("CREATE", "PAGO_REMITO", pagoGuardado.getId(),
@@ -345,32 +397,114 @@ public class RemitoService {
         return "R-" + fecha + "-" + String.format("%04d", count);
     }
 
-    private void validarStockParaEntrega(Remito remito) {
-        Map<Long, Integer> cantidadesPorProducto = new HashMap<>();
-        Map<Long, Producto> productos = new HashMap<>();
-
-        for (ItemRemito item : remito.getItems()) {
-            Producto producto = item.getProducto();
-            if (producto == null) {
-                continue;
-            }
-
-            int cantidad = item.getCantidad() != null ? item.getCantidad() : 0;
-            if (cantidad <= 0) {
-                throw new BusinessException("La cantidad del remito debe ser mayor a cero para " + producto.getNombre() + ".");
-            }
-
-            cantidadesPorProducto.merge(producto.getId(), cantidad, Integer::sum);
-            productos.put(producto.getId(), producto);
+    private ItemRemito armarItem(ItemRemitoDTO itemDto, Remito remito, String tenant) {
+        double cantidad = itemDto.getCantidad() != null ? itemDto.getCantidad() : 0;
+        if (cantidad <= 0) {
+            throw new BusinessException("La cantidad debe ser mayor a cero.");
         }
 
-        for (Map.Entry<Long, Integer> entry : cantidadesPorProducto.entrySet()) {
+        ItemRemito item = new ItemRemito();
+        item.setRemito(remito);
+        item.setTenantId(tenant);
+        item.setCantidad(cantidad);
+        item.setDescripcion(itemDto.getDescripcion());
+
+        if (itemDto.getProductoId() != null) {
+            Producto producto = productoRepository.findByIdAndTenantId(itemDto.getProductoId(), tenant)
+                    .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
+            item.setProducto(producto);
+            double precio = producto.getPrecio() != null ? producto.getPrecio() : 0;
+            item.setPrecioUnitario(precio);
+            item.setTotalLinea(redondear(precio * cantidad));
+        } else {
+            item.setPrecioUnitario(0.0);
+            item.setTotalLinea(0.0);
+        }
+        return item;
+    }
+
+    private Map<Long, Double> cantidadesPorProducto(Remito remito) {
+        Map<Long, Double> cantidades = new HashMap<>();
+        if (remito.getItems() == null) {
+            return cantidades;
+        }
+        for (ItemRemito item : remito.getItems()) {
+            if (item.getProducto() == null) {
+                continue;
+            }
+            cantidades.merge(item.getProducto().getId(), nz(item.getCantidad()), Double::sum);
+        }
+        return cantidades;
+    }
+
+    private void validarStockParaEntrega(Remito remito) {
+        validarStockParaEntrega(remito, Map.of());
+    }
+
+    private void validarStockParaEntrega(Remito remito, Map<Long, Double> stockYaDescontado) {
+        Map<Long, Double> requerido = cantidadesPorProducto(remito);
+        Map<Long, Producto> productos = new HashMap<>();
+        if (remito.getItems() != null) {
+            for (ItemRemito item : remito.getItems()) {
+                if (item.getProducto() != null) {
+                    productos.put(item.getProducto().getId(), item.getProducto());
+                }
+            }
+        }
+
+        for (Map.Entry<Long, Double> entry : requerido.entrySet()) {
             Producto producto = productos.get(entry.getKey());
-            int disponible = producto.getCantidadStock() != null ? producto.getCantidadStock() : 0;
-            int requerido = entry.getValue();
-            if (disponible < requerido) {
+            if (producto == null) {
+                producto = productoRepository.findByIdAndTenantId(entry.getKey(), remito.getTenantId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
+            }
+            double disponible = nz(producto.getCantidadStock()) + stockYaDescontado.getOrDefault(entry.getKey(), 0.0);
+            double pedido = entry.getValue();
+            if (pedido <= 0) {
+                throw new BusinessException("La cantidad del remito debe ser mayor a cero para " + producto.getNombre() + ".");
+            }
+            if (disponible + 0.0001 < pedido) {
                 throw new BusinessException("Stock insuficiente para entregar remito. Producto: "
-                        + producto.getNombre() + ". Disponible: " + disponible + ", requerido: " + requerido + ".");
+                        + producto.getNombre() + ". Disponible: " + disponible + ", requerido: " + pedido + ".");
+            }
+        }
+    }
+
+    private void ajustarStockPorEdicion(Remito remito, Map<Long, Double> stockAnterior) {
+        Map<Long, Double> stockNuevo = cantidadesPorProducto(remito);
+        Map<Long, Producto> productos = new HashMap<>();
+        if (remito.getItems() != null) {
+            for (ItemRemito item : remito.getItems()) {
+                if (item.getProducto() != null) {
+                    productos.put(item.getProducto().getId(), item.getProducto());
+                }
+            }
+        }
+
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        ids.addAll(stockAnterior.keySet());
+        ids.addAll(stockNuevo.keySet());
+
+        Usuario usuario = stockMovementService.getCurrentUser();
+        for (Long productoId : ids) {
+            double anterior = stockAnterior.getOrDefault(productoId, 0.0);
+            double actual = stockNuevo.getOrDefault(productoId, 0.0);
+            double delta = actual - anterior;
+            if (Math.abs(delta) < 0.0001) {
+                continue;
+            }
+            Producto producto = productos.get(productoId);
+            if (producto == null) {
+                producto = productoRepository.findByIdAndTenantId(productoId, remito.getTenantId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
+            }
+            if (delta > 0) {
+                stockMovementService.registrar(MovementType.TRANSFERENCIA, producto, usuario,
+                        delta, "Edicion remito #" + remito.getNroRemito() + " (mas kg)", null, null, remito);
+            } else {
+                stockMovementService.registrar(MovementType.AJUSTE, producto, usuario,
+                        Math.abs(delta), "Edicion remito #" + remito.getNroRemito() + " (devuelve stock)",
+                        null, null, remito);
             }
         }
     }

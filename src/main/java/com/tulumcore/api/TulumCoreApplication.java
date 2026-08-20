@@ -11,14 +11,12 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
 
-import javax.sql.DataSource;
-import java.util.Arrays;
-import java.util.stream.Collectors;
-
 @SpringBootApplication
+@EnableScheduling
 public class TulumCoreApplication {
 
     public static void main(String[] args) {
@@ -29,28 +27,11 @@ public class TulumCoreApplication {
     public CommandLineRunner initData(
             UsuarioRepository repo,
             PasswordEncoder passwordEncoder,
-            DataSource dataSource,
             @Value("${app.seed.super-admin.enabled:false}") boolean superAdminSeedEnabled,
             @Value("${app.seed.super-admin.email:}") String superAdminEmail,
             @Value("${app.seed.super-admin.password:}") String superAdminPassword,
             @Value("${app.seed.super-admin.tenant:superadmin}") String superAdminTenant) {
         return args -> {
-            // TODO: migrar este DDL manual a Flyway/Liquibase antes de endurecer produccion.
-            // El constraint se deriva del enum Rol: si se agrega un rol nuevo y este DDL
-            // quedara con la lista vieja, el arranque lo recrearía sin el rol nuevo y
-            // todo insert/update de usuarios empezaría a fallar en produccion.
-            String rolesPermitidos = Arrays.stream(Rol.values())
-                    .map(r -> "'" + r.name() + "'")
-                    .collect(Collectors.joining(","));
-            try (var conn = dataSource.getConnection();
-                 var stmt = conn.createStatement()) {
-                stmt.execute("ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check");
-                stmt.execute("ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol IN (" + rolesPermitidos + "))");
-                System.out.println(">>> CHECK constraint de rol actualizado: " + rolesPermitidos);
-            } catch (Exception e) {
-                System.out.println(">>> [WARN] No se pudo actualizar constraint de rol: " + e.getMessage());
-            }
-
             if (!superAdminSeedEnabled) {
                 System.out.println(">>> Seed de Super Admin deshabilitado");
                 return;

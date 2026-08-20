@@ -50,7 +50,7 @@ public class StockMovementController {
             Long productoId = Long.valueOf(body.get("productoId").toString());
             Long usuarioId = Long.valueOf(body.get("usuarioId").toString());
             String tipo = (String) body.get("tipoMovimiento");
-            Integer cantidad = Integer.valueOf(body.get("cantidad").toString());
+            double cantidad = Double.parseDouble(body.get("cantidad").toString().replace(',', '.'));
             String motivo = (String) body.get("motivo");
 
             String tenant = TenantContext.getCurrentTenant();

@@ -46,6 +46,11 @@ public class RemitoController {
         return ResponseEntity.ok(remitoService.crear(dto));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Remito> actualizar(@PathVariable Long id, @RequestBody RemitoDTO dto) {
+        return ResponseEntity.ok(remitoService.actualizar(id, dto));
+    }
+
     @PutMapping("/{id}/estado")
     public ResponseEntity<Remito> cambiarEstado(
             @PathVariable Long id,

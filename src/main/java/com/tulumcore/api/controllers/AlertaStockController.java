@@ -26,7 +26,7 @@ public class AlertaStockController {
                 .stream()
                 .filter(p -> p.getStockMinimo() != null
                         && p.getStockMinimo() > 0
-                        && p.getCantidadStock() <= p.getStockMinimo())
+                        && (p.getCantidadStock() != null ? p.getCantidadStock() : 0) <= p.getStockMinimo())
                 .map(p -> {
                     CategoriaDTO cat = null;
                     if (p.getCategoria() != null) {

@@ -1,6 +1,5 @@
 package com.tulumcore.api.controllers;
 
-import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.Caja;
 import com.tulumcore.api.services.CajaService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +17,7 @@ public class CajaController {
 
     @GetMapping("/estado")
     public ResponseEntity<?> getEstadoCaja() {
-        return ResponseEntity.ok(cajaService.obtenerCajaAbierta().orElse(null));
+        return ResponseEntity.ok(cajaService.obtenerCajaAbiertaActualizada().orElse(null));
     }
 
     @PostMapping("/apertura")
@@ -43,5 +42,11 @@ public class CajaController {
 
     @GetMapping("/historial")
     public ResponseEntity<List<Caja>> getHistorialCajas() {
-        return ResponseEntity.ok(cajaService.obtenerHistorial());    }
+        return ResponseEntity.ok(cajaService.obtenerHistorial());
+    }
+
+    @PostMapping("/{id}/descargo")
+    public ResponseEntity<Caja> registrarDescargo(@PathVariable Long id, @RequestBody CajaDescargoDTO dto) {
+        return ResponseEntity.ok(cajaService.registrarDescargo(id, dto));
+    }
 }
