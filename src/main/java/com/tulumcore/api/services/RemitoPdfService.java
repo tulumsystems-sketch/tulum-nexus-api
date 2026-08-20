@@ -164,7 +164,7 @@ public class RemitoPdfService {
 
         for (ItemRemito item : items) {
             tabla.addCell(celda(descripcionItem(item), Element.ALIGN_LEFT));
-            tabla.addCell(celda(cantidadTexto(item.getCantidad()), Element.ALIGN_CENTER));
+            tabla.addCell(celda(cantidadTexto(item), Element.ALIGN_CENTER));
             tabla.addCell(celda(moneda(item.getPrecioUnitario()), Element.ALIGN_RIGHT));
             tabla.addCell(celda(moneda(item.getTotalLinea()), Element.ALIGN_RIGHT));
         }
@@ -308,15 +308,38 @@ public class RemitoPdfService {
         return p;
     }
 
-    private String cantidadTexto(Double valor) {
+    private String cantidadTexto(ItemRemito item) {
+        Double valor = item != null ? item.getCantidad() : null;
         if (valor == null) {
-            return "0";
+            valor = 0d;
         }
         java.text.DecimalFormat formato = new java.text.DecimalFormat(
                 "0.###",
                 new java.text.DecimalFormatSymbols(new Locale("es", "AR"))
         );
-        return formato.format(valor);
+        String unidad = "u.";
+        if (item != null && item.getProducto() != null && item.getProducto().getCategoria() != null) {
+            String raw = item.getProducto().getCategoria().getUnidadMedida();
+            unidad = sufijoUnidad(raw);
+        }
+        return formato.format(valor) + " " + unidad;
+    }
+
+    private String sufijoUnidad(String unidadMedida) {
+        if (unidadMedida == null || unidadMedida.isBlank()) {
+            return "u.";
+        }
+        return switch (unidadMedida.trim().toUpperCase()) {
+            case "UNIDAD" -> "u.";
+            case "BULTO" -> "bultos";
+            case "CAJA" -> "cajas";
+            case "PAQUETE" -> "paq.";
+            case "KG" -> "kg";
+            case "GRAMO" -> "g";
+            case "LITRO" -> "l";
+            case "MILILITRO" -> "ml";
+            default -> unidadMedida.trim().toLowerCase();
+        };
     }
 
     private String moneda(Double valor) {

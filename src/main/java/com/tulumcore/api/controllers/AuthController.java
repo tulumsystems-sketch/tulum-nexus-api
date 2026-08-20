@@ -2,7 +2,6 @@ package com.tulumcore.api.controllers;
 
 import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.Rol;
-import com.tulumcore.api.entities.TenantConfig;
 import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.repositories.TenantConfigRepository;
 import com.tulumcore.api.repositories.UsuarioRepository;
@@ -60,16 +59,18 @@ public class AuthController {
                         .body(Map.of("error", "Demasiados intentos. Proba de nuevo en unos minutos."));
             }
 
-            TenantContext.setCurrentTenant(loginRequest.tenant());
+            String tenant = loginRequest.tenant().trim().toLowerCase();
+            String email = loginRequest.email() != null ? loginRequest.email().trim() : "";
+            TenantContext.setCurrentTenant(tenant);
 
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            loginRequest.email(),
+                            email,
                             loginRequest.password()
                     )
             );
 
-            Usuario usuario = usuarioRepository.findByEmailAndTenantId(loginRequest.email(), loginRequest.tenant())
+            Usuario usuario = usuarioRepository.findByEmailAndTenantId(email, tenant)
                     .orElse(null);
             if (usuario == null) {
                 loginAttemptService.registrarFallo(claveIntento);
@@ -77,7 +78,7 @@ public class AuthController {
                         .body(Map.of("error", "Email o contraseña incorrectos"));
             }
 
-            if (!comercioActivo(loginRequest.tenant(), usuario.getRol())) {
+            if (!comercioActivo(tenant, usuario.getRol())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Comercio inactivo"));
             }
@@ -85,8 +86,8 @@ public class AuthController {
             loginAttemptService.registrarExito(claveIntento);
 
             String jwt = jwtService.generateToken(
-                    loginRequest.email(),
-                    loginRequest.tenant(),
+                    usuario.getEmail(),
+                    tenant,
                     usuario.getRol().name()
             );
 
@@ -94,7 +95,7 @@ public class AuthController {
                     "token", jwt,
                     "rol", usuario.getRol().name(),
                     "email", usuario.getEmail(),
-                    "tenant", loginRequest.tenant(),
+                    "tenant", tenant,
                     "expiresInMs", jwtExpirationMs,
                     "inactividadMinutos", inactividadMinutos
             ));
@@ -119,8 +120,6 @@ public class AuthController {
         if (rol == Rol.SUPER_ADMIN) {
             return true;
         }
-        return tenantConfigRepository.findByTenantId(tenantId)
-                .map(TenantConfig::isActivo)
-                .orElse(false);
+        return Boolean.TRUE.equals(tenantConfigRepository.findActivoNativo(tenantId));
     }
 }

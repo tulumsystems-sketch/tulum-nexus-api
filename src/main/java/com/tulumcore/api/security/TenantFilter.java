@@ -2,7 +2,6 @@ package com.tulumcore.api.security;
 
 import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.entities.FeatureKey;
-import com.tulumcore.api.entities.TenantConfig;
 import com.tulumcore.api.repositories.TenantConfigRepository;
 import com.tulumcore.api.services.TenantFeatureService;
 import io.jsonwebtoken.Claims;
@@ -96,14 +95,14 @@ public class TenantFilter extends OncePerRequestFilter {
             String rol = claims.get("rol", String.class);
 
             if (userEmail != null && tenantId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                TenantContext.setCurrentTenant(tenantId);
                 if (!comercioActivo(tenantId, rol)) {
+                    TenantContext.clear();
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.setContentType("application/json");
                     response.getWriter().write("{\"error\": \"Comercio inactivo\"}");
                     return;
                 }
-
-                TenantContext.setCurrentTenant(tenantId);
 
                 String authority = "ROLE_" + (rol != null ? rol : "OPERADOR");
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
@@ -144,9 +143,7 @@ public class TenantFilter extends OncePerRequestFilter {
             return false;
         }
 
-        boolean tenantValido = tenantConfigRepository.findByTenantId(tenantIdHeader)
-                .filter(TenantConfig::isActivo)
-                .isPresent();
+        boolean tenantValido = Boolean.TRUE.equals(tenantConfigRepository.findActivoNativo(tenantIdHeader));
         if (!tenantValido) {
             TenantContext.clear();
             SecurityContextHolder.clearContext();
@@ -182,9 +179,7 @@ public class TenantFilter extends OncePerRequestFilter {
         if ("SUPER_ADMIN".equals(rol)) {
             return true;
         }
-        return tenantConfigRepository.findByTenantId(tenantId)
-                .map(TenantConfig::isActivo)
-                .orElse(false);
+        return Boolean.TRUE.equals(tenantConfigRepository.findActivoNativo(tenantId));
     }
 
     private void responderJson(HttpServletResponse response, int status, String mensaje) throws IOException {
