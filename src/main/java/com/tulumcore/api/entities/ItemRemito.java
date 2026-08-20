@@ -20,7 +20,7 @@ public class ItemRemito extends BaseEntity {
     @JoinColumn(name = "producto_id")
     private Producto producto;
 
-    private Integer cantidad;
+    private Double cantidad;
     private Double precioUnitario = 0.0;
     private Double totalLinea = 0.0;
     private String descripcion; // Para ítems sin producto registrado (servicios, etc.)
@@ -31,8 +31,8 @@ public class ItemRemito extends BaseEntity {
     public void setRemito(Remito remito) { this.remito = remito; }
     public Producto getProducto() { return producto; }
     public void setProducto(Producto producto) { this.producto = producto; }
-    public Integer getCantidad() { return cantidad; }
-    public void setCantidad(Integer cantidad) { this.cantidad = cantidad; }
+    public Double getCantidad() { return cantidad; }
+    public void setCantidad(Double cantidad) { this.cantidad = cantidad; }
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
     public Double getPrecioUnitario() { return precioUnitario; }

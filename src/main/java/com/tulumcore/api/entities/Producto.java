@@ -25,7 +25,7 @@ public class Producto extends BaseEntity {
      */
     private Double margenPorcentaje;
 
-    private Integer cantidadStock;
+    private Double cantidadStock;
     private Integer stockMinimo = 0; // Alerta cuando cantidadStock <= stockMinimo
     private String medidas;
 
@@ -51,8 +51,8 @@ public class Producto extends BaseEntity {
     public void setPrecioCosto(Double precioCosto) { this.precioCosto = precioCosto; }
     public Double getMargenPorcentaje() { return margenPorcentaje; }
     public void setMargenPorcentaje(Double margenPorcentaje) { this.margenPorcentaje = margenPorcentaje; }
-    public Integer getCantidadStock() { return cantidadStock; }
-    public void setCantidadStock(Integer cantidadStock) { this.cantidadStock = cantidadStock; }
+    public Double getCantidadStock() { return cantidadStock; }
+    public void setCantidadStock(Double cantidadStock) { this.cantidadStock = cantidadStock; }
     public Integer getStockMinimo() { return stockMinimo; }
     public void setStockMinimo(Integer stockMinimo) { this.stockMinimo = stockMinimo; }
     public String getMedidas() { return medidas; }

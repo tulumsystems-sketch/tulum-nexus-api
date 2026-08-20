@@ -77,7 +77,7 @@ public class VentaService {
             }
 
             int cantidadAcumulada = cantidadesPorProducto.merge(p.getId(), cantidad, Integer::sum);
-            int stockDisponible = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
+            double stockDisponible = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
             if (stockDisponible < cantidadAcumulada) {
                 throw new BusinessException("Stock insuficiente para: " + p.getNombre()
                         + ". Disponible: " + stockDisponible + ", requerido: " + cantidadAcumulada + ".");

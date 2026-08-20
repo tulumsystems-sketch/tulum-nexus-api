@@ -164,7 +164,7 @@ public class RemitoPdfService {
 
         for (ItemRemito item : items) {
             tabla.addCell(celda(descripcionItem(item), Element.ALIGN_LEFT));
-            tabla.addCell(celda(String.valueOf(item.getCantidad() != null ? item.getCantidad() : 0), Element.ALIGN_CENTER));
+            tabla.addCell(celda(cantidadTexto(item.getCantidad()), Element.ALIGN_CENTER));
             tabla.addCell(celda(moneda(item.getPrecioUnitario()), Element.ALIGN_RIGHT));
             tabla.addCell(celda(moneda(item.getTotalLinea()), Element.ALIGN_RIGHT));
         }
@@ -306,6 +306,17 @@ public class RemitoPdfService {
         Paragraph p = new Paragraph(" ");
         p.setLeading(alto);
         return p;
+    }
+
+    private String cantidadTexto(Double valor) {
+        if (valor == null) {
+            return "0";
+        }
+        java.text.DecimalFormat formato = new java.text.DecimalFormat(
+                "0.###",
+                new java.text.DecimalFormatSymbols(new Locale("es", "AR"))
+        );
+        return formato.format(valor);
     }
 
     private String moneda(Double valor) {

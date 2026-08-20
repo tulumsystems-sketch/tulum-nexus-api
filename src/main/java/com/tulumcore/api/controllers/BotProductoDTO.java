@@ -8,7 +8,7 @@ public record BotProductoDTO(
         String nombre,
         String descripcion,
         Double precio,
-        Integer cantidadStock,
+        Double cantidadStock,
         String medidas,
         String imageUrl
 ) {}

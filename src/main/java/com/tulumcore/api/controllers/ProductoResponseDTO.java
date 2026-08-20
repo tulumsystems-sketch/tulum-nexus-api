@@ -11,7 +11,7 @@ public record ProductoResponseDTO(
         Double precio,
         Double precioCosto,
         Double margenPorcentaje,
-        Integer cantidadStock,
+        Double cantidadStock,
         Integer stockMinimo,
         String medidas,
         String codigoBarras,

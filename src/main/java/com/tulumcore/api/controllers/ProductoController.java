@@ -66,8 +66,8 @@ public class ProductoController {
         producto.setPrecio(dto.getPrecio());
         producto.setPrecioCosto(dto.getPrecioCosto());
         producto.setMargenPorcentaje(dto.getMargenPorcentaje());
-        Integer stockInicial = dto.getCantidadStock() != null ? dto.getCantidadStock() : 0;
-        producto.setCantidadStock(0);
+        Double stockInicial = dto.getCantidadStock() != null ? dto.getCantidadStock() : 0d;
+        producto.setCantidadStock(0d);
         producto.setStockMinimo(dto.getStockMinimo());
         producto.setMedidas(dto.getMedidas());
         producto.setCodigoBarras(dto.getCodigoBarras());

@@ -131,7 +131,7 @@ public class ProductoService {
     }
 
     @Transactional
-    public void adjustStock(Long id, int cantidad) {
+    public void adjustStock(Long id, double cantidad) {
         Producto producto = getProductoById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con id: " + id));
         Usuario usuario = stockMovementService.getCurrentUser();

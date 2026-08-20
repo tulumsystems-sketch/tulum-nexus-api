@@ -17,6 +17,8 @@ import java.util.List;
 @Service
 public class StockMovementService {
 
+    private static final double TOLERANCIA = 0.0001;
+
     @Autowired
     private StockMovementRepository repository;
 
@@ -49,62 +51,63 @@ public class StockMovementService {
     @Transactional
     public StockMovement registrar(
             MovementType tipo, Producto producto, Usuario usuario,
-            Integer cantidad, String motivo, Venta venta, Compra compra) {
+            Number cantidad, String motivo, Venta venta, Compra compra) {
         return registrar(tipo, producto, usuario, cantidad, motivo, venta, compra, null);
     }
 
     @Transactional
     public StockMovement registrar(
             MovementType tipo, Producto producto, Usuario usuario,
-            Integer cantidad, String motivo, Venta venta, Compra compra, Remito remito) {
+            Number cantidad, String motivo, Venta venta, Compra compra, Remito remito) {
 
-        validarMovimiento(tipo, producto, cantidad);
+        double qty = cantidad != null ? cantidad.doubleValue() : 0;
+        validarMovimiento(tipo, producto, qty);
 
         StockMovement mov = new StockMovement();
         mov.setTipoMovimiento(tipo);
         mov.setProducto(producto);
         mov.setUsuario(usuario);
-        mov.setCantidad(cantidad);
+        mov.setCantidad(qty);
         mov.setMotivo(motivo);
         mov.setVenta(venta);
         mov.setCompra(compra);
         mov.setRemito(remito);
         mov.setTenantId(TenantContext.getCurrentTenant());
 
-        producto.setCantidadStock(calcularStockResultante(tipo, producto, cantidad));
+        producto.setCantidadStock(calcularStockResultante(tipo, producto, qty));
         Producto productoActualizado = productoRepository.save(producto);
         mov.setProducto(productoActualizado);
 
         return repository.save(mov);
     }
 
-    private void validarMovimiento(MovementType tipo, Producto producto, Integer cantidad) {
+    private void validarMovimiento(MovementType tipo, Producto producto, double cantidad) {
         if (producto == null) {
             throw new BusinessException("Producto requerido para registrar movimiento de stock.");
         }
-        if (cantidad == null || cantidad == 0) {
+        if (Math.abs(cantidad) < TOLERANCIA) {
             throw new BusinessException("La cantidad del movimiento de stock debe ser distinta de cero.");
         }
         if (tipo != MovementType.AJUSTE && cantidad < 0) {
             throw new BusinessException("La cantidad debe ser positiva para movimientos de tipo " + tipo + ".");
         }
 
-        int stockResultante = calcularStockResultante(tipo, producto, cantidad);
-        if (stockResultante < 0) {
+        double stockResultante = calcularStockResultante(tipo, producto, cantidad);
+        if (stockResultante < -TOLERANCIA) {
             throw new BusinessException("Stock insuficiente para " + producto.getNombre()
                     + ". Disponible: " + stockActual(producto) + ", requerido: " + cantidad + ".");
         }
     }
 
-    private int calcularStockResultante(MovementType tipo, Producto producto, Integer cantidad) {
-        int stockActual = stockActual(producto);
+    private double calcularStockResultante(MovementType tipo, Producto producto, double cantidad) {
+        double stock = stockActual(producto);
         if (tipo == MovementType.COMPRA || tipo == MovementType.AJUSTE) {
-            return stockActual + cantidad;
+            return stock + cantidad;
         }
-        return stockActual - cantidad;
+        return stock - cantidad;
     }
 
-    private int stockActual(Producto producto) {
+    private double stockActual(Producto producto) {
         return producto.getCantidadStock() != null ? producto.getCantidadStock() : 0;
     }
 }
