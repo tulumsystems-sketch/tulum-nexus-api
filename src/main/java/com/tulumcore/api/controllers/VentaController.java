@@ -36,6 +36,14 @@ public class VentaController {
         return ResponseEntity.ok(ventaService.anularVenta(id));
     }
 
+    @PutMapping("/{id}/estado")
+    public ResponseEntity<VentaListadoDTO> actualizarEstado(
+            @PathVariable Long id,
+            @RequestBody VentaEstadoDTO dto) {
+        Venta actualizada = ventaService.actualizarEstado(id, dto != null ? dto.getEstado() : null);
+        return ResponseEntity.ok(VentaListadoDTO.desde(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
     @GetMapping("/search")
     public ResponseEntity<Page<VentaListadoDTO>> filtrarVentas(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
@@ -44,10 +52,12 @@ public class VentaController {
             @RequestParam(required = false) String estado,
             @RequestParam(required = false) Long clienteId,
             @RequestParam(required = false, defaultValue = "false") boolean whatsapp,
+            @RequestParam(required = false) String canal,
+            @RequestParam(required = false, defaultValue = "false") boolean soloPedidos,
             Pageable pageable) {
         String tenant = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(ventaService.buscarVentas(
-                tenant, desde, hasta, metodoPago, estado, clienteId, whatsapp, pageable));
+                tenant, desde, hasta, metodoPago, estado, clienteId, whatsapp, canal, soloPedidos, pageable));
     }
 
     @GetMapping("/stats/resumen-semanal")

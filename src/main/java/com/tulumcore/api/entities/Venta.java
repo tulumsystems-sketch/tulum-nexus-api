@@ -16,6 +16,11 @@ public class Venta extends BaseEntity {
     private String nroComprobante;
     private String observaciones;
     private String estado = "PENDIENTE";
+    /** MOSTRADOR, WHATSAPP o DELIVERY. Default mostrador para no romper ventas viejas. */
+    private String canal = "MOSTRADOR";
+    private String nombreContacto;
+    private String telefonoContacto;
+    private String direccionEntrega;
     private Double totalNeto;
     private Double totalIva;
     private Double totalFinal;
@@ -44,6 +49,14 @@ public class Venta extends BaseEntity {
     public void setObservaciones(String observaciones) { this.observaciones = observaciones; }
     public String getEstado() { return estado; }
     public void setEstado(String estado) { this.estado = estado; }
+    public String getCanal() { return canal; }
+    public void setCanal(String canal) { this.canal = canal; }
+    public String getNombreContacto() { return nombreContacto; }
+    public void setNombreContacto(String nombreContacto) { this.nombreContacto = nombreContacto; }
+    public String getTelefonoContacto() { return telefonoContacto; }
+    public void setTelefonoContacto(String telefonoContacto) { this.telefonoContacto = telefonoContacto; }
+    public String getDireccionEntrega() { return direccionEntrega; }
+    public void setDireccionEntrega(String direccionEntrega) { this.direccionEntrega = direccionEntrega; }
     public Double getTotalNeto() { return totalNeto; }
     public void setTotalNeto(Double totalNeto) { this.totalNeto = totalNeto; }
     public Double getTotalIva() { return totalIva; }

@@ -43,10 +43,16 @@ public class VentaService {
     @Autowired private CajaService cajaService;
     @Autowired private StockMovementService stockMovementService;
     @Autowired private AuditoryLogService auditoryLogService;
+    @Autowired private UsuarioRepository usuarioRepository;
 
     @Transactional
     public Venta guardar(VentaDTO dto) {
+        if (dto == null || dto.getItems() == null || dto.getItems().isEmpty()) {
+            throw new BusinessException("El pedido necesita al menos un producto.");
+        }
+
         String tenant = TenantContext.getCurrentTenant();
+        String canal = CanalVenta.normalizar(dto.getCanal());
         Caja caja = cajaService.exigirCajaOperativa();
 
         TenantConfig config = tenantConfigRepository.findByTenantId(tenant).orElse(null);
@@ -56,16 +62,28 @@ public class VentaService {
         venta.setMoneda("ARS");
         venta.setMetodoPago(normalizarMetodoPago(dto.getMetodoPago(), config));
         venta.setTenantId(tenant);
+        venta.setCanal(canal);
+        venta.setNombreContacto(textoOpcional(dto.getNombreContacto()));
+        venta.setTelefonoContacto(textoOpcional(dto.getTelefonoContacto()));
+        venta.setDireccionEntrega(textoOpcional(dto.getDireccionEntrega()));
 
         if (dto.getClienteId() != null && dto.getClienteId() > 0) {
-            venta.setCliente(clienteRepository.findByIdAndTenantId(dto.getClienteId(), tenant).orElse(null));
+            Cliente cliente = clienteRepository.findByIdAndTenantId(dto.getClienteId(), tenant).orElse(null);
+            venta.setCliente(cliente);
+            completarContactoDesdeCliente(venta, cliente);
+        }
+
+        if (CanalVenta.esPedido(canal)
+                && textoOpcional(venta.getTelefonoContacto()) == null
+                && textoOpcional(venta.getNombreContacto()) == null) {
+            throw new BusinessException("Indicá un cliente, o al menos nombre o teléfono del pedido.");
         }
 
         List<ItemVenta> items = new ArrayList<>();
         Map<Long, Integer> cantidadesPorProducto = new HashMap<>();
         double subtotal = 0;
 
-        Usuario usuario = stockMovementService.getCurrentUser();
+        Usuario usuario = resolverUsuarioMovimiento(tenant);
 
         for (ItemVentaDTO itemDto : dto.getItems()) {
             Producto p = productoRepository.findByIdAndTenantId(itemDto.getProductoId(), tenant)
@@ -103,7 +121,7 @@ public class VentaService {
         venta.setTotalNeto(subtotal);
         venta.setTotalIva(totalIva);
         venta.setTotalFinal(totalFinal);
-        venta.setEstado("PAGADA");
+        venta.setEstado(EstadoPedido.inicialParaCanal(canal));
         if (EFECTIVO.equals(venta.getMetodoPago())) {
             double abonado = dto.getMontoAbonado() != null ? dto.getMontoAbonado() : totalFinal;
             venta.setMontoAbonado(abonado);
@@ -111,6 +129,11 @@ public class VentaService {
         }
 
         Venta saved = ventaRepository.save(venta);
+        if (saved.getNroComprobante() == null || saved.getNroComprobante().isBlank()) {
+            String prefijo = CanalVenta.esPedido(canal) ? "P-" : "V-";
+            saved.setNroComprobante(prefijo + saved.getId());
+            saved = ventaRepository.save(saved);
+        }
         cajaService.reconstruirTurno(caja);
 
         for (ItemVenta item : saved.getItems()) {
@@ -120,12 +143,27 @@ public class VentaService {
 
         String clienteNombre = saved.getCliente() != null
                 ? saved.getCliente().getNombre() + " " + saved.getCliente().getApellido()
-                : "Consumidor Final";
+                : (saved.getNombreContacto() != null ? saved.getNombreContacto() : "Consumidor Final");
         auditoryLogService.registrar("CREATE", "VENTA", saved.getId(),
                 "Venta #" + saved.getId() + " - " + clienteNombre + " - $" +
-                        String.format("%.2f", saved.getTotalFinal()) + " (" + saved.getMetodoPago() + ")",
+                        String.format("%.2f", saved.getTotalFinal()) + " (" + saved.getMetodoPago() + "/" + saved.getCanal() + ")",
                 null, detalleVenta(saved));
 
+        return saved;
+    }
+
+    @Transactional
+    public Venta actualizarEstado(Long id, String nuevoEstado) {
+        String tenant = TenantContext.getCurrentTenant();
+        Venta venta = ventaRepository.findByIdAndTenantId(id, tenant)
+                .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada con id: " + id));
+        EstadoPedido.validarTransicion(venta.getEstado(), nuevoEstado);
+        String detalleAnterior = detalleVenta(venta);
+        venta.setEstado(EstadoPedido.normalizar(nuevoEstado));
+        Venta saved = ventaRepository.save(venta);
+        auditoryLogService.registrar("UPDATE", "VENTA", saved.getId(),
+                "Pedido #" + saved.getId() + " pasó a " + saved.getEstado(),
+                detalleAnterior, detalleVenta(saved));
         return saved;
     }
 
@@ -163,6 +201,14 @@ public class VentaService {
     public Page<VentaListadoDTO> buscarVentas(String tenantId, LocalDate desde, LocalDate hasta,
                                     String metodoPago, String estado, Long clienteId,
                                     boolean soloWhatsapp, Pageable pageable) {
+        return buscarVentas(tenantId, desde, hasta, metodoPago, estado, clienteId,
+                soloWhatsapp, null, false, pageable);
+    }
+
+    public Page<VentaListadoDTO> buscarVentas(String tenantId, LocalDate desde, LocalDate hasta,
+                                    String metodoPago, String estado, Long clienteId,
+                                    boolean soloWhatsapp, String canal, boolean soloPedidos,
+                                    Pageable pageable) {
         Pageable ordenado = pageable;
         if (pageable == null || pageable.getSort().isUnsorted()) {
             int page = pageable != null ? pageable.getPageNumber() : 0;
@@ -177,13 +223,11 @@ public class VentaService {
             if (metodoPago != null && !metodoPago.isEmpty()) predicates.add(cb.equal(root.get("metodoPago"), metodoPago));
             if (estado != null && !estado.isEmpty()) predicates.add(cb.equal(root.get("estado"), estado));
             if (clienteId != null) predicates.add(cb.equal(root.get("cliente").get("id"), clienteId));
-            if (soloWhatsapp) {
-                predicates.add(cb.like(cb.lower(cb.coalesce(root.get("observaciones"), "")),
-                        "%pedido automático vía whatsapp%"));
-            }
+            aplicarFiltroCanal(predicates, cb, root, canal, soloPedidos, soloWhatsapp);
             return cb.and(predicates.toArray(new Predicate[0]));
         }, ordenado);
-        return page.map(VentaListadoDTO::desde);
+        Map<Long, Venta> conItems = hidratarItems(page.getContent());
+        return page.map(venta -> VentaListadoDTO.desde(conItems.getOrDefault(venta.getId(), venta)));
     }
 
     public List<VentaListadoDTO> getAllVentas(String tenantId) {
@@ -277,11 +321,75 @@ public class VentaService {
     private String detalleVenta(Venta venta) {
         return auditoryLogService.detalle(
                 "estado", venta.getEstado(),
+                "canal", venta.getCanal(),
                 "metodoPago", venta.getMetodoPago(),
                 "totalFinal", venta.getTotalFinal(),
                 "montoAbonado", venta.getMontoAbonado(),
                 "vuelto", venta.getVuelto(),
                 "items", venta.getItems() != null ? venta.getItems().size() : 0
         );
+    }
+
+    private void aplicarFiltroCanal(List<Predicate> predicates, jakarta.persistence.criteria.CriteriaBuilder cb,
+                                    jakarta.persistence.criteria.Root<Venta> root,
+                                    String canal, boolean soloPedidos, boolean soloWhatsapp) {
+        if (canal != null && !canal.isBlank()) {
+            predicates.add(cb.equal(root.get("canal"), CanalVenta.normalizar(canal)));
+            return;
+        }
+        if (soloPedidos) {
+            predicates.add(root.get("canal").in(CanalVenta.WHATSAPP, CanalVenta.DELIVERY));
+            return;
+        }
+        if (soloWhatsapp) {
+            predicates.add(cb.equal(root.get("canal"), CanalVenta.WHATSAPP));
+        }
+    }
+
+    private Map<Long, Venta> hidratarItems(List<Venta> ventas) {
+        if (ventas == null || ventas.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = ventas.stream().map(Venta::getId).toList();
+        return ventaRepository.findWithItemsByIdIn(ids).stream()
+                .collect(Collectors.toMap(Venta::getId, v -> v, (a, b) -> a));
+    }
+
+    private Usuario resolverUsuarioMovimiento(String tenant) {
+        try {
+            return stockMovementService.getCurrentUser();
+        } catch (RuntimeException ignored) {
+            // El bot no es un usuario de login: usamos el admin del comercio para el movimiento de stock.
+        }
+        return usuarioRepository.findAllByTenantId(tenant).stream()
+                .filter(u -> u.getRol() == Rol.ADMIN || u.getRol() == Rol.OPERADOR)
+                .min(Comparator.comparing(Usuario::getId))
+                .orElseThrow(() -> new BusinessException(
+                        "No hay un usuario del comercio para registrar el movimiento de stock."));
+    }
+
+    private void completarContactoDesdeCliente(Venta venta, Cliente cliente) {
+        if (cliente == null) {
+            return;
+        }
+        if (textoOpcional(venta.getNombreContacto()) == null) {
+            String nombre = ((cliente.getNombre() != null ? cliente.getNombre() : "")
+                    + " " + (cliente.getApellido() != null ? cliente.getApellido() : "")).trim();
+            venta.setNombreContacto(textoOpcional(nombre));
+        }
+        if (textoOpcional(venta.getTelefonoContacto()) == null) {
+            venta.setTelefonoContacto(textoOpcional(cliente.getTelefono()));
+        }
+        if (textoOpcional(venta.getDireccionEntrega()) == null) {
+            venta.setDireccionEntrega(textoOpcional(cliente.getDireccion()));
+        }
+    }
+
+    private String textoOpcional(String valor) {
+        if (valor == null) {
+            return null;
+        }
+        String recortado = valor.trim();
+        return recortado.isEmpty() ? null : recortado;
     }
 }

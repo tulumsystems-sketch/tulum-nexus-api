@@ -30,6 +30,15 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     Optional<Venta> findDetalleByIdAndTenantId(@Param("id") Long id, @Param("tenant") String tenant);
 
     @Query("""
+            SELECT DISTINCT v FROM Venta v
+            LEFT JOIN FETCH v.cliente
+            LEFT JOIN FETCH v.items i
+            LEFT JOIN FETCH i.producto
+            WHERE v.id IN :ids
+            """)
+    List<Venta> findWithItemsByIdIn(@Param("ids") List<Long> ids);
+
+    @Query("""
             SELECT COUNT(v), COALESCE(SUM(v.totalFinal), 0)
             FROM Venta v
             WHERE v.tenantId = :tenant

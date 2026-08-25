@@ -3,6 +3,8 @@ package com.tulumcore.api.controllers;
 import com.tulumcore.api.entities.FeatureKey;
 import com.tulumcore.api.entities.Producto;
 import com.tulumcore.api.entities.Venta;
+import com.tulumcore.api.exceptions.BusinessException;
+import com.tulumcore.api.services.CanalVenta;
 import com.tulumcore.api.services.ProductoService;
 import com.tulumcore.api.services.TenantFeatureService;
 import com.tulumcore.api.services.VentaService;
@@ -31,30 +33,52 @@ public class ExternalBotController {
     }
 
     @PostMapping("/pedido")
-    public ResponseEntity<?> crearPedidoDesdeBot(@RequestBody ExternalOrderDTO dto) {
+    public ResponseEntity<PedidoCreadoDTO> crearPedidoDesdeBot(@RequestBody ExternalOrderDTO dto) {
         tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        if (dto == null || dto.getItems() == null || dto.getItems().isEmpty()) {
+            throw new BusinessException("El pedido necesita al menos un producto.");
+        }
 
         VentaDTO ventaDto = new VentaDTO();
-        ventaDto.setMetodoPago("MERCADO_PAGO");
-        ventaDto.setObservaciones("Pedido automático vía WhatsApp: " + dto.getClienteTelefono());
+        ventaDto.setCanal(CanalVenta.WHATSAPP);
+        ventaDto.setMetodoPago(dto.getMetodoPago());
+        ventaDto.setTelefonoContacto(primerTexto(dto.getClienteTelefono()));
+        ventaDto.setNombreContacto(primerTexto(dto.getNombre()));
+        ventaDto.setDireccionEntrega(primerTexto(dto.getDireccion()));
+        ventaDto.setObservaciones(armarObservaciones(dto));
 
         List<ItemVentaDTO> itemsVenta = new ArrayList<>();
-        if (dto.getItems() != null) {
-            for (ExternalOrderDTO.ItemBotDTO itemBot : dto.getItems()) {
-                ItemVentaDTO iv = new ItemVentaDTO();
-                iv.setProductoId(itemBot.getProductoId());
-                iv.setCantidad(itemBot.getCantidad());
-                itemsVenta.add(iv);
-            }
+        for (ExternalOrderDTO.ItemBotDTO itemBot : dto.getItems()) {
+            ItemVentaDTO iv = new ItemVentaDTO();
+            iv.setProductoId(itemBot.getProductoId());
+            iv.setCantidad(itemBot.getCantidad());
+            itemsVenta.add(iv);
         }
         ventaDto.setItems(itemsVenta);
 
-        try {
-            Venta resultado = ventaService.guardar(ventaDto);
-            return ResponseEntity.ok("Pedido #" + resultado.getId() + " recibido y en preparación");
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error al procesar pedido del bot: " + e.getMessage());
+        Venta resultado = ventaService.guardar(ventaDto);
+        return ResponseEntity.ok(PedidoCreadoDTO.desde(resultado));
+    }
+
+    private String armarObservaciones(ExternalOrderDTO dto) {
+        String telefono = primerTexto(dto.getClienteTelefono());
+        String extra = primerTexto(dto.getObservaciones());
+        StringBuilder sb = new StringBuilder("Pedido WhatsApp");
+        if (telefono != null) {
+            sb.append(" · Tel: ").append(telefono);
         }
+        if (extra != null) {
+            sb.append(" · ").append(extra);
+        }
+        return sb.toString();
+    }
+
+    private String primerTexto(String valor) {
+        if (valor == null) {
+            return null;
+        }
+        String recortado = valor.trim();
+        return recortado.isEmpty() ? null : recortado;
     }
 
     private BotProductoDTO aDtoPublico(Producto producto) {
