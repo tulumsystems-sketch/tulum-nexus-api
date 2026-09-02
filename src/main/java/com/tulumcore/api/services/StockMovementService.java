@@ -94,20 +94,32 @@ public class StockMovementService {
 
         double stockResultante = calcularStockResultante(tipo, producto, cantidad);
         if (stockResultante < -TOLERANCIA) {
-            throw new BusinessException("Stock insuficiente para " + producto.getNombre()
-                    + ". Disponible: " + stockActual(producto) + ", requerido: " + cantidad + ".");
+            throw new BusinessException("Stock insuficiente de " + producto.getNombre()
+                    + ". Disponible: " + formatear(stockActual(producto))
+                    + ", requerido: " + formatear(Math.abs(cantidad)) + ".");
         }
     }
 
     private double calcularStockResultante(MovementType tipo, Producto producto, double cantidad) {
         double stock = stockActual(producto);
         if (tipo == MovementType.COMPRA || tipo == MovementType.AJUSTE) {
-            return stock + cantidad;
+            return redondear(stock + cantidad);
         }
-        return stock - cantidad;
+        return redondear(stock - cantidad);
     }
 
     private double stockActual(Producto producto) {
         return producto.getCantidadStock() != null ? producto.getCantidadStock() : 0;
+    }
+
+    private double redondear(double valor) {
+        return Math.round(valor * 1000.0) / 1000.0;
+    }
+
+    private String formatear(double valor) {
+        if (Math.abs(valor - Math.round(valor)) < 0.0001) {
+            return String.valueOf(Math.round(valor));
+        }
+        return String.valueOf(redondear(valor));
     }
 }

@@ -48,6 +48,11 @@ public class AlertaStockController {
                             p.getMedidas(),
                             p.getCodigoBarras(),
                             p.getImageUrl(),
+                            p.isPublicadoEnCatalogo(),
+                            p.getTipo(),
+                            p.isVendible(),
+                            p.getCantidadStock() != null ? p.getCantidadStock() : 0,
+                            java.util.List.of(),
                             cat
                     );
                 })

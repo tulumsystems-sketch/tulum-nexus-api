@@ -1,9 +1,7 @@
 package com.tulumcore.api.controllers;
 
-/**
- * DTO de respuesta para Producto.
- * Controlamos exactamente qué campos exponemos a la API.
- */
+import java.util.List;
+
 public record ProductoResponseDTO(
         Long id,
         String nombre,
@@ -16,5 +14,10 @@ public record ProductoResponseDTO(
         String medidas,
         String codigoBarras,
         String imageUrl,
+        boolean publicadoEnCatalogo,
+        String tipo,
+        boolean vendible,
+        Double porcionesEstimadas,
+        List<RecetaLineaDTO> receta,
         CategoriaDTO categoria
 ) {}

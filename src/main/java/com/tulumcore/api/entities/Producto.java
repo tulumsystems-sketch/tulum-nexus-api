@@ -30,11 +30,25 @@ public class Producto extends BaseEntity {
     private Integer stockMinimo = 0; // Alerta cuando cantidadStock <= stockMinimo
     private String medidas;
 
+    @Column(name = "tipo", nullable = false, length = 20)
+    private String tipo = ProductoTipo.ELABORADO;
+
+    /**
+     * Si es true, sale en la carta y se puede vender.
+     * Un INSUMO puede ser vendible (Coca, agua) o no (fiambre, lavandina).
+     */
+    @Column(name = "vendible", nullable = false)
+    private boolean vendible = true;
+
     @Column(name = "codigo_barras", length = 64)
     private String codigoBarras;
 
     @Column(name = "image_url")
     private String imageUrl;
+
+    /** Si es true y el tenant tiene CUSTOMER_CATALOG, aparece en la tienda pública. */
+    @Column(name = "publicado_en_catalogo", nullable = false)
+    private boolean publicadoEnCatalogo = false;
 
     @ManyToOne
     @JoinColumn(name = "categoria_id", nullable = false)
@@ -62,6 +76,12 @@ public class Producto extends BaseEntity {
     public void setCodigoBarras(String codigoBarras) { this.codigoBarras = codigoBarras; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getTipo() { return tipo; }
+    public void setTipo(String tipo) { this.tipo = ProductoTipo.normalizar(tipo); }
+    public boolean isVendible() { return vendible; }
+    public void setVendible(boolean vendible) { this.vendible = vendible; }
+    public boolean isPublicadoEnCatalogo() { return publicadoEnCatalogo; }
+    public void setPublicadoEnCatalogo(boolean publicadoEnCatalogo) { this.publicadoEnCatalogo = publicadoEnCatalogo; }
     public Categoria getCategoria() { return categoria; }
     public void setCategoria(Categoria categoria) { this.categoria = categoria; }
 }

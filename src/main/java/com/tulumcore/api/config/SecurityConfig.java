@@ -50,16 +50,38 @@ public class SecurityConfig {
                         // Config: cualquier rol autenticado del tenant puede leerla,
                         // el front la necesita para armar el menú y la marca
                         .requestMatchers(HttpMethod.GET, "/api/config/**")
-                        .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "SUPER_ADMIN")
+                        .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "REPARTIDOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/features/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "REPARTIDOR", "SUPER_ADMIN")
                         // Config: escribir solo ADMIN y SUPER_ADMIN
                         .requestMatchers("/api/config/**")
                         .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Cadete: toma envíos listos, marca entregado y cobra en la calle.
+                        .requestMatchers(HttpMethod.GET, "/api/ventas/salida")
+                        .hasAnyRole("ADMIN", "OPERADOR", "REPARTIDOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/ventas/*/tomar")
+                        .hasRole("REPARTIDOR")
+                        .requestMatchers(HttpMethod.POST, "/api/ventas/*/liberar")
+                        .hasAnyRole("ADMIN", "OPERADOR", "REPARTIDOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/ventas/*/estado")
+                        .hasAnyRole("ADMIN", "OPERADOR", "REPARTIDOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/ventas/*/cobro")
+                        .hasAnyRole("ADMIN", "OPERADOR", "REPARTIDOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/ventas/stats/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         // Punto de venta: el PREVENTISTA toma pedidos y remitos, no cobra en el mostrador.
                         // Se bloquea acá y no sólo escondiendo el botón en el front.
                         .requestMatchers(HttpMethod.POST, "/api/ventas/**")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/ventas/**")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/ventas/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "REPARTIDOR", "SUPER_ADMIN")
+                        .requestMatchers("/api/productos/**", "/api/categorias/**", "/api/clientes/**",
+                                "/api/proveedores/**", "/api/compras/**", "/api/mesas/**",
+                                "/api/stock-movements/**", "/api/audit-log/**", "/api/alertas/**",
+                                "/api/dashboard/**", "/api/media/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "SUPER_ADMIN")
                         .requestMatchers("/api/pagos/**")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         // Cobranzas de remitos: el preventista arma hojas de ruta, no cobra.
@@ -69,6 +91,8 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/remitos/*/pagos")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
+                        .requestMatchers("/api/remitos/**")
+                        .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "SUPER_ADMIN")
                         // Caja: estado, apertura, cierre para ADMIN, OPERADOR, SUPER_ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/caja/estado")
                         .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
@@ -79,6 +103,9 @@ public class SecurityConfig {
                         // Caja: historial y demás para ADMIN y SUPER_ADMIN
                         .requestMatchers("/api/caja/**")
                         .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        // Cocina puede listar cadetes para despachar un envío.
+                        .requestMatchers(HttpMethod.GET, "/api/usuarios/repartidores")
+                        .hasAnyRole("ADMIN", "OPERADOR", "SUPER_ADMIN")
                         // Usuarios: administración solo ADMIN y SUPER_ADMIN
                         .requestMatchers("/api/usuarios/**")
                         .hasAnyRole("ADMIN", "SUPER_ADMIN")

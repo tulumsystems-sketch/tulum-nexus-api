@@ -5,6 +5,7 @@ import com.tulumcore.api.controllers.CajaDescargoDTO;
 import com.tulumcore.api.entities.Caja;
 import com.tulumcore.api.entities.CajaDescargo;
 import com.tulumcore.api.entities.PagoRemito;
+import com.tulumcore.api.entities.Rol;
 import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.entities.Venta;
 import com.tulumcore.api.exceptions.BusinessException;
@@ -12,6 +13,7 @@ import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.repositories.CajaDescargoRepository;
 import com.tulumcore.api.repositories.CajaRepository;
 import com.tulumcore.api.repositories.PagoRemitoRepository;
+import com.tulumcore.api.repositories.UsuarioRepository;
 import com.tulumcore.api.repositories.VentaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +50,9 @@ public class CajaService {
 
     @Autowired
     private AuditoryLogService auditoryLogService;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     @Value("${app.caja.max-horas-abierta:24}")
     private int maxHorasAbierta;
@@ -108,6 +113,41 @@ public class CajaService {
                                 + "Si el turno anterior cumplió "
                                 + maxHorasAbierta
                                 + " horas, se cerró automáticamente."));
+    }
+
+    /**
+     * Pedidos WhatsApp de Fogón no pueden esperar a que alguien abra caja en Tulum.
+     * Si no hay turno, abre uno a nombre del admin del tenant.
+     */
+    @Transactional
+    public Caja exigirCajaOperativaOAbrirParaWhatsApp() {
+        return resolverCajaOperativa().orElseGet(this::abrirCajaParaWhatsApp);
+    }
+
+    private Caja abrirCajaParaWhatsApp() {
+        String tenant = TenantContext.getCurrentTenant();
+        Usuario admin = usuarioRepository.findAllByTenantIdAndRol(tenant, Rol.ADMIN)
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        Caja nuevaCaja = new Caja();
+        nuevaCaja.setFechaApertura(LocalDateTime.now());
+        nuevaCaja.setMontoInicial(0.0);
+        nuevaCaja.setMontoVentasEfectivo(0.0);
+        nuevaCaja.setMontoVentasMP(0.0);
+        nuevaCaja.setMontoVentasTransferencia(0.0);
+        nuevaCaja.setMontoCobranzasEfectivo(0.0);
+        nuevaCaja.setMontoCobranzasTransferencia(0.0);
+        nuevaCaja.setMontoFinalEsperado(0.0);
+        nuevaCaja.setEstado("ABIERTA");
+        nuevaCaja.setCierreAutomatico(false);
+        nuevaCaja.setTenantId(tenant);
+        nuevaCaja.setUsuarioApertura(admin);
+
+        Caja saved = cajaRepository.save(nuevaCaja);
+        log.info("Caja {} abierta para pedidos WhatsApp (tenant {})", saved.getId(), tenant);
+        return marcarLimiteTurno(saved);
     }
 
     public Caja marcarLimiteTurno(Caja caja) {
@@ -302,7 +342,7 @@ public class CajaService {
         double ventasTransferencia = 0;
         double ventasMp = 0;
         for (Venta venta : ventaRepository.findByTenantIdAndFechaGreaterThanEqual(tenant, desde)) {
-            if ("ANULADA".equals(venta.getEstado())) {
+            if ("ANULADA".equals(venta.getEstado()) || !venta.isCobrado()) {
                 continue;
             }
             double total = nz(venta.getTotalFinal());

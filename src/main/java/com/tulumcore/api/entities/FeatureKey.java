@@ -4,5 +4,6 @@ public enum FeatureKey {
     POS_BARCODE,
     WHATSAPP_BOT,
     CUSTOMER_CATALOG,
-    PAYMENT_LINKS
+    PAYMENT_LINKS,
+    MESAS
 }

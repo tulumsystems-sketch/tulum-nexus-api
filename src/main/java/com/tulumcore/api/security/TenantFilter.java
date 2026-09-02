@@ -143,6 +143,7 @@ public class TenantFilter extends OncePerRequestFilter {
             return false;
         }
 
+        TenantContext.setCurrentTenant(tenantIdHeader);
         boolean tenantValido = Boolean.TRUE.equals(tenantConfigRepository.findActivoNativo(tenantIdHeader));
         if (!tenantValido) {
             TenantContext.clear();
@@ -151,7 +152,6 @@ public class TenantFilter extends OncePerRequestFilter {
             return false;
         }
 
-        TenantContext.setCurrentTenant(tenantIdHeader);
         if (!tenantFeatureService.isEnabled(FeatureKey.WHATSAPP_BOT)) {
             TenantContext.clear();
             SecurityContextHolder.clearContext();

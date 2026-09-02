@@ -22,6 +22,7 @@ public class ItemVenta extends BaseEntity {
 
     private Integer cantidad;
     private Double precioUnitario;
+    private String observaciones;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -33,4 +34,6 @@ public class ItemVenta extends BaseEntity {
     public void setCantidad(Integer cantidad) { this.cantidad = cantidad; }
     public Double getPrecioUnitario() { return precioUnitario; }
     public void setPrecioUnitario(Double precioUnitario) { this.precioUnitario = precioUnitario; }
+    public String getObservaciones() { return observaciones; }
+    public void setObservaciones(String observaciones) { this.observaciones = observaciones; }
 }

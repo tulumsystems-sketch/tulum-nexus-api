@@ -54,23 +54,21 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "El campo empresa (tenant) es obligatorio"));
             }
 
+            String tenantId = loginRequest.tenant().trim().toLowerCase();
+            String email = loginRequest.email() != null ? loginRequest.email().trim() : "";
+
             if (loginAttemptService.estaBloqueado(claveIntento)) {
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                         .body(Map.of("error", "Demasiados intentos. Proba de nuevo en unos minutos."));
             }
 
-            String tenant = loginRequest.tenant().trim().toLowerCase();
-            String email = loginRequest.email() != null ? loginRequest.email().trim() : "";
-            TenantContext.setCurrentTenant(tenant);
+            TenantContext.setCurrentTenant(tenantId);
 
             authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            email,
-                            loginRequest.password()
-                    )
+                    new UsernamePasswordAuthenticationToken(email, loginRequest.password())
             );
 
-            Usuario usuario = usuarioRepository.findByEmailAndTenantId(email, tenant)
+            Usuario usuario = usuarioRepository.findByEmailAndTenantId(email, tenantId)
                     .orElse(null);
             if (usuario == null) {
                 loginAttemptService.registrarFallo(claveIntento);
@@ -78,7 +76,7 @@ public class AuthController {
                         .body(Map.of("error", "Email o contraseña incorrectos"));
             }
 
-            if (!comercioActivo(tenant, usuario.getRol())) {
+            if (!comercioActivo(tenantId, usuario.getRol())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Comercio inactivo"));
             }
@@ -86,8 +84,8 @@ public class AuthController {
             loginAttemptService.registrarExito(claveIntento);
 
             String jwt = jwtService.generateToken(
-                    usuario.getEmail(),
-                    tenant,
+                    email,
+                    tenantId,
                     usuario.getRol().name()
             );
 
@@ -95,7 +93,8 @@ public class AuthController {
                     "token", jwt,
                     "rol", usuario.getRol().name(),
                     "email", usuario.getEmail(),
-                    "tenant", tenant,
+                    "tenant", tenantId,
+                    "userId", usuario.getId(),
                     "expiresInMs", jwtExpirationMs,
                     "inactividadMinutos", inactividadMinutos
             ));

@@ -19,6 +19,31 @@ public class VentaController {
 
     @Autowired private VentaService ventaService;
 
+    @GetMapping("/salida")
+    public ResponseEntity<SalidaPedidosDTO> getSalida() {
+        return ResponseEntity.ok(ventaService.obtenerSalida());
+    }
+
+    @PostMapping("/{id}/tomar")
+    public ResponseEntity<VentaListadoDTO> tomarPedido(@PathVariable Long id) {
+        Venta actualizada = ventaService.tomarPedido(id);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
+    @PostMapping("/{id}/despachar")
+    public ResponseEntity<VentaListadoDTO> despacharPedido(
+            @PathVariable Long id,
+            @RequestBody(required = false) DespachoDTO dto) {
+        Venta actualizada = ventaService.despacharEnvio(id, dto);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
+    @PostMapping("/{id}/liberar")
+    public ResponseEntity<VentaListadoDTO> liberarPedido(@PathVariable Long id) {
+        Venta actualizada = ventaService.liberarPedido(id);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
     @PostMapping
     public ResponseEntity<?> crearVenta(@RequestBody VentaDTO dto) {
         return ResponseEntity.ok(ventaService.guardar(dto));
@@ -36,6 +61,30 @@ public class VentaController {
         return ResponseEntity.ok(ventaService.anularVenta(id));
     }
 
+    @PutMapping("/{id}/estado")
+    public ResponseEntity<VentaListadoDTO> actualizarEstado(
+            @PathVariable Long id,
+            @RequestBody VentaEstadoDTO dto) {
+        Venta actualizada = ventaService.actualizarEstado(id, dto != null ? dto.getEstado() : null);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
+    @PutMapping("/{id}/cobro")
+    public ResponseEntity<VentaListadoDTO> actualizarCobro(
+            @PathVariable Long id,
+            @RequestBody VentaCobroDTO dto) {
+        Venta actualizada = ventaService.actualizarCobro(id, dto);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<VentaListadoDTO> editarPedido(
+            @PathVariable Long id,
+            @RequestBody VentaDTO dto) {
+        Venta actualizada = ventaService.actualizarPedido(id, dto);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
     @GetMapping("/search")
     public ResponseEntity<Page<VentaListadoDTO>> filtrarVentas(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
@@ -44,10 +93,12 @@ public class VentaController {
             @RequestParam(required = false) String estado,
             @RequestParam(required = false) Long clienteId,
             @RequestParam(required = false, defaultValue = "false") boolean whatsapp,
+            @RequestParam(required = false) String canal,
+            @RequestParam(required = false, defaultValue = "false") boolean soloPedidos,
             Pageable pageable) {
         String tenant = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(ventaService.buscarVentas(
-                tenant, desde, hasta, metodoPago, estado, clienteId, whatsapp, pageable));
+                tenant, desde, hasta, metodoPago, estado, clienteId, whatsapp, canal, soloPedidos, pageable));
     }
 
     @GetMapping("/stats/resumen-semanal")

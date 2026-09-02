@@ -12,6 +12,10 @@ public class ProductoDTO {
     private String codigoBarras;
     private Long categoriaId;
     private String imageUrl;
+    private Boolean publicadoEnCatalogo;
+    private String tipo;
+    private Boolean vendible;
+    private java.util.List<RecetaLineaDTO> receta;
 
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
@@ -35,4 +39,12 @@ public class ProductoDTO {
     public void setCategoriaId(Long categoriaId) { this.categoriaId = categoriaId; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public Boolean getPublicadoEnCatalogo() { return publicadoEnCatalogo; }
+    public void setPublicadoEnCatalogo(Boolean publicadoEnCatalogo) { this.publicadoEnCatalogo = publicadoEnCatalogo; }
+    public String getTipo() { return tipo; }
+    public void setTipo(String tipo) { this.tipo = tipo; }
+    public Boolean getVendible() { return vendible; }
+    public void setVendible(Boolean vendible) { this.vendible = vendible; }
+    public java.util.List<RecetaLineaDTO> getReceta() { return receta; }
+    public void setReceta(java.util.List<RecetaLineaDTO> receta) { this.receta = receta; }
 }
