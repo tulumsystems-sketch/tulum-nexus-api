@@ -3,6 +3,7 @@ package com.tulumcore.api.repositories;
 import com.tulumcore.api.entities.Venta;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -22,6 +23,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     @Query("""
             SELECT DISTINCT v FROM Venta v
             LEFT JOIN FETCH v.cliente
+            LEFT JOIN FETCH v.mesa
             LEFT JOIN FETCH v.items i
             LEFT JOIN FETCH i.producto p
             LEFT JOIN FETCH p.categoria
@@ -32,6 +34,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     @Query("""
             SELECT DISTINCT v FROM Venta v
             LEFT JOIN FETCH v.cliente
+            LEFT JOIN FETCH v.mesa
             LEFT JOIN FETCH v.items i
             LEFT JOIN FETCH i.producto
             WHERE v.id IN :ids
@@ -45,4 +48,37 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
               AND (v.estado IS NULL OR v.estado <> 'ANULADA')
             """)
     List<Object[]> totalesNoAnuladas(@Param("tenant") String tenant);
+
+    @Query("""
+            SELECT v FROM Venta v
+            WHERE v.tenantId = :tenant
+              AND v.mesa.id = :mesaId
+              AND v.estado NOT IN ('ENTREGADO', 'ANULADA', 'PAGADA')
+            ORDER BY v.fecha DESC
+            """)
+    List<Venta> findCuentasAbiertasByMesa(@Param("tenant") String tenant, @Param("mesaId") Long mesaId);
+
+    @Query("""
+            SELECT DISTINCT v FROM Venta v
+            LEFT JOIN FETCH v.items i
+            LEFT JOIN FETCH i.producto
+            WHERE v.tenantId = :tenant
+              AND v.mesa.id IN :mesaIds
+              AND v.estado NOT IN ('ENTREGADO', 'ANULADA', 'PAGADA')
+            """)
+    List<Venta> findCuentasAbiertasByMesas(@Param("tenant") String tenant, @Param("mesaIds") List<Long> mesaIds);
+
+    List<Venta> findByTenantIdAndEstadoOrderByFechaAsc(String tenantId, String estado);
+
+    List<Venta> findByTenantIdAndEstadoAndRepartidorUsuarioIdOrderByFechaAsc(
+            String tenantId, String estado, Long repartidorUsuarioId);
+
+    List<Venta> findByTenantIdAndTelefonoContactoOrderByFechaDesc(String tenantId, String telefonoContacto);
+
+    List<Venta> findByTenantIdAndVentaOrigenIdOrderByFechaAsc(String tenantId, Long ventaOrigenId);
+
+    /** Suelta el FK para poder borrar la mesa: el ticket queda en historial, sin mesa. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Venta v SET v.mesa = null WHERE v.tenantId = :tenant AND v.mesa.id = :mesaId")
+    int desvincularMesa(@Param("tenant") String tenant, @Param("mesaId") Long mesaId);
 }

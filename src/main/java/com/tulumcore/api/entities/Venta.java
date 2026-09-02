@@ -16,11 +16,21 @@ public class Venta extends BaseEntity {
     private String nroComprobante;
     private String observaciones;
     private String estado = "PENDIENTE";
-    /** MOSTRADOR, WHATSAPP o DELIVERY. Default mostrador para no romper ventas viejas. */
+    /** MOSTRADOR, WHATSAPP, DELIVERY, RETIRO o SALON. Default mostrador para no romper ventas viejas. */
     private String canal = "MOSTRADOR";
     private String nombreContacto;
     private String telefonoContacto;
     private String direccionEntrega;
+    /** Cadete que tomó el envío (autoasignación). Null = sigue en cola de salida. */
+    private String repartidorNombre;
+    private Long repartidorUsuarioId;
+    /** Independiente del estado de cocina: el pedido puede estar en prep y ya cobrado. */
+    private boolean cobrado = true;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "mesa_id")
+    private Mesa mesa;
+    private Long ventaOrigenId;
     private Double totalNeto;
     private Double totalIva;
     private Double totalFinal;
@@ -36,7 +46,7 @@ public class Venta extends BaseEntity {
     private Cliente cliente;
 
     @JsonManagedReference
-    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ItemVenta> items;
 
     public Long getId() { return id; }
@@ -57,6 +67,16 @@ public class Venta extends BaseEntity {
     public void setTelefonoContacto(String telefonoContacto) { this.telefonoContacto = telefonoContacto; }
     public String getDireccionEntrega() { return direccionEntrega; }
     public void setDireccionEntrega(String direccionEntrega) { this.direccionEntrega = direccionEntrega; }
+    public String getRepartidorNombre() { return repartidorNombre; }
+    public void setRepartidorNombre(String repartidorNombre) { this.repartidorNombre = repartidorNombre; }
+    public Long getRepartidorUsuarioId() { return repartidorUsuarioId; }
+    public void setRepartidorUsuarioId(Long repartidorUsuarioId) { this.repartidorUsuarioId = repartidorUsuarioId; }
+    public boolean isCobrado() { return cobrado; }
+    public void setCobrado(boolean cobrado) { this.cobrado = cobrado; }
+    public Mesa getMesa() { return mesa; }
+    public void setMesa(Mesa mesa) { this.mesa = mesa; }
+    public Long getVentaOrigenId() { return ventaOrigenId; }
+    public void setVentaOrigenId(Long ventaOrigenId) { this.ventaOrigenId = ventaOrigenId; }
     public Double getTotalNeto() { return totalNeto; }
     public void setTotalNeto(Double totalNeto) { this.totalNeto = totalNeto; }
     public Double getTotalIva() { return totalIva; }

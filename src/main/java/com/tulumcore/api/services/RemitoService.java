@@ -360,9 +360,9 @@ public class RemitoService {
 
         for (Map.Entry<Long, Integer> entry : cantidadesPorProducto.entrySet()) {
             Producto producto = productos.get(entry.getKey());
-            int disponible = producto.getCantidadStock() != null ? producto.getCantidadStock() : 0;
+            double disponible = producto.getCantidadStock() != null ? producto.getCantidadStock() : 0;
             int requerido = entry.getValue();
-            if (disponible < requerido) {
+            if (disponible + 0.0001 < requerido) {
                 throw new BusinessException("Stock insuficiente para entregar remito. Producto: "
                         + producto.getNombre() + ". Disponible: " + disponible + ", requerido: " + requerido + ".");
             }

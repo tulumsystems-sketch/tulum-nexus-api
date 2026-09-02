@@ -96,14 +96,17 @@ public class TenantFilter extends OncePerRequestFilter {
             String rol = claims.get("rol", String.class);
 
             if (userEmail != null && tenantId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                // Hay que setear el tenant ANTES de leer tenant_config: Hibernate @TenantId
+                // filtra por el contexto actual (si está vacío usa "public" y el comercio "no existe").
+                TenantContext.setCurrentTenant(tenantId);
+
                 if (!comercioActivo(tenantId, rol)) {
+                    TenantContext.clear();
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.setContentType("application/json");
                     response.getWriter().write("{\"error\": \"Comercio inactivo\"}");
                     return;
                 }
-
-                TenantContext.setCurrentTenant(tenantId);
 
                 String authority = "ROLE_" + (rol != null ? rol : "OPERADOR");
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
@@ -144,6 +147,7 @@ public class TenantFilter extends OncePerRequestFilter {
             return false;
         }
 
+        TenantContext.setCurrentTenant(tenantIdHeader);
         boolean tenantValido = tenantConfigRepository.findByTenantId(tenantIdHeader)
                 .filter(TenantConfig::isActivo)
                 .isPresent();
@@ -154,7 +158,6 @@ public class TenantFilter extends OncePerRequestFilter {
             return false;
         }
 
-        TenantContext.setCurrentTenant(tenantIdHeader);
         if (!tenantFeatureService.isEnabled(FeatureKey.WHATSAPP_BOT)) {
             TenantContext.clear();
             SecurityContextHolder.clearContext();

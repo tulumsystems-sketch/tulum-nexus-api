@@ -69,12 +69,12 @@ public class CompraService {
         // 4. Calcular faltantes comparando stock actual, demanda y stock mínimo
         List<Map<String, Object>> sugerencias = new ArrayList<>();
         for (Producto p : productos) {
-            int stockActual = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
+            double stockActual = p.getCantidadStock() != null ? p.getCantidadStock() : 0;
             int stockMinimo = p.getStockMinimo() != null ? p.getStockMinimo() : 0;
             int demandaRemitos = demandaPorProducto.getOrDefault(p.getId(), 0);
             
             // Formula: Faltante = Demanda de Remitos + Stock Mínimo - Stock Actual
-            int sugerido = demandaRemitos + stockMinimo - stockActual;
+            int sugerido = (int) Math.ceil(demandaRemitos + stockMinimo - stockActual);
             
             if (sugerido > 0) {
                 Map<String, Object> sug = new HashMap<>();

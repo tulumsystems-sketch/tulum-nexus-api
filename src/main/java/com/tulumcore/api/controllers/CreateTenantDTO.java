@@ -1,5 +1,9 @@
 package com.tulumcore.api.controllers;
 
+/**
+ * Alta de empresa desde SuperAdmin.
+ * Los feature* opcionales se persisten en tenant_features al crear.
+ */
 public record CreateTenantDTO(
         String tenantId,
         String nombreEmpresa,
@@ -14,5 +18,8 @@ public record CreateTenantDTO(
         Boolean comprasHabilitado,
         Boolean stockHabilitado,
         String aliasCobro,
-        Double margenPorDefecto
+        Double margenPorDefecto,
+        Boolean featureMesas,
+        Boolean featureWhatsappBot,
+        Boolean featurePosBarcode
 ) {}

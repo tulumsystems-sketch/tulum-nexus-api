@@ -19,6 +19,31 @@ public class VentaController {
 
     @Autowired private VentaService ventaService;
 
+    @GetMapping("/salida")
+    public ResponseEntity<SalidaPedidosDTO> getSalida() {
+        return ResponseEntity.ok(ventaService.obtenerSalida());
+    }
+
+    @PostMapping("/{id}/tomar")
+    public ResponseEntity<VentaListadoDTO> tomarPedido(@PathVariable Long id) {
+        Venta actualizada = ventaService.tomarPedido(id);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
+    @PostMapping("/{id}/despachar")
+    public ResponseEntity<VentaListadoDTO> despacharPedido(
+            @PathVariable Long id,
+            @RequestBody(required = false) DespachoDTO dto) {
+        Venta actualizada = ventaService.despacharEnvio(id, dto);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
+    @PostMapping("/{id}/liberar")
+    public ResponseEntity<VentaListadoDTO> liberarPedido(@PathVariable Long id) {
+        Venta actualizada = ventaService.liberarPedido(id);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
     @PostMapping
     public ResponseEntity<?> crearVenta(@RequestBody VentaDTO dto) {
         return ResponseEntity.ok(ventaService.guardar(dto));
@@ -41,7 +66,23 @@ public class VentaController {
             @PathVariable Long id,
             @RequestBody VentaEstadoDTO dto) {
         Venta actualizada = ventaService.actualizarEstado(id, dto != null ? dto.getEstado() : null);
-        return ResponseEntity.ok(VentaListadoDTO.desde(ventaService.obtenerDetalle(actualizada.getId())));
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
+    @PutMapping("/{id}/cobro")
+    public ResponseEntity<VentaListadoDTO> actualizarCobro(
+            @PathVariable Long id,
+            @RequestBody VentaCobroDTO dto) {
+        Venta actualizada = ventaService.actualizarCobro(id, dto);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<VentaListadoDTO> editarPedido(
+            @PathVariable Long id,
+            @RequestBody VentaDTO dto) {
+        Venta actualizada = ventaService.actualizarPedido(id, dto);
+        return ResponseEntity.ok(ventaService.toListado(ventaService.obtenerDetalle(actualizada.getId())));
     }
 
     @GetMapping("/search")

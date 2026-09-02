@@ -27,7 +27,7 @@ public final class EstadoPedido {
     private EstadoPedido() {}
 
     public static String inicialParaCanal(String canal) {
-        return CanalVenta.esPedido(canal) ? PENDIENTE : PAGADA;
+        return CanalVenta.esCuentaAbierta(canal) ? PENDIENTE : PAGADA;
     }
 
     public static String normalizar(String raw) {
@@ -54,15 +54,27 @@ public final class EstadoPedido {
     }
 
     public static List<String> siguientes(String actual, String canal) {
+        return siguientes(actual, canal, null);
+    }
+
+    public static List<String> siguientes(String actual, String canal, String direccionEntrega) {
         String desde = actual == null || actual.isBlank() ? PENDIENTE : actual;
         if (ANULADA.equals(desde) || ENTREGADO.equals(desde) || PAGADA.equals(desde)) {
             return List.of();
         }
-        if (CanalVenta.DELIVERY.equals(canal)) {
+        if (CanalVenta.esSalon(canal)) {
             return switch (desde) {
                 case PENDIENTE -> List.of(EN_PREPARACION);
-                case EN_PREPARACION -> List.of(EN_CAMINO);
-                case LISTO, EN_CAMINO -> List.of(ENTREGADO);
+                case EN_PREPARACION -> List.of(LISTO);
+                default -> List.of();
+            };
+        }
+        if (CanalVenta.esEnvio(canal, direccionEntrega)) {
+            return switch (desde) {
+                case PENDIENTE -> List.of(EN_PREPARACION);
+                case EN_PREPARACION -> List.of(LISTO);
+                case LISTO -> List.of(EN_CAMINO);
+                case EN_CAMINO -> List.of(ENTREGADO);
                 default -> List.of();
             };
         }

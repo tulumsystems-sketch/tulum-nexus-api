@@ -11,13 +11,16 @@ import java.util.Optional;
 
 public interface ProductoRepository extends JpaRepository<Producto, Long> {
 
-    List<Producto> findAllByTenantId(String tenantId);
+    @Query("SELECT p FROM Producto p LEFT JOIN FETCH p.categoria WHERE p.tenantId = :tenantId")
+    List<Producto> findAllByTenantId(@Param("tenantId") String tenantId);
 
     Optional<Producto> findByIdAndTenantId(Long id, String tenantId);
 
     List<Producto> findByNombreContainingIgnoreCaseAndTenantId(String nombre, String tenantId);
 
     Optional<Producto> findByCodigoBarrasAndTenantId(String codigoBarras, String tenantId);
+
+    List<Producto> findByTenantIdAndPublicadoEnCatalogoTrueOrderByNombreAsc(String tenantId);
 
     @Query("""
             SELECT p FROM Producto p

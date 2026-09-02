@@ -8,7 +8,21 @@ public record BotProductoDTO(
         String nombre,
         String descripcion,
         Double precio,
-        Integer cantidadStock,
+        Double cantidadStock,
         String medidas,
-        String imageUrl
-) {}
+        String imageUrl,
+        Double disponible,
+        String categoria
+) {
+    public BotProductoDTO(
+            Long id,
+            String nombre,
+            String descripcion,
+            Double precio,
+            Double cantidadStock,
+            String medidas,
+            String imageUrl
+    ) {
+        this(id, nombre, descripcion, precio, cantidadStock, medidas, imageUrl, cantidadStock, null);
+    }
+}

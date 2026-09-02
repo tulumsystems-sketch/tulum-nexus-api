@@ -49,14 +49,14 @@ public class StockMovementService {
     @Transactional
     public StockMovement registrar(
             MovementType tipo, Producto producto, Usuario usuario,
-            Integer cantidad, String motivo, Venta venta, Compra compra) {
+            double cantidad, String motivo, Venta venta, Compra compra) {
         return registrar(tipo, producto, usuario, cantidad, motivo, venta, compra, null);
     }
 
     @Transactional
     public StockMovement registrar(
             MovementType tipo, Producto producto, Usuario usuario,
-            Integer cantidad, String motivo, Venta venta, Compra compra, Remito remito) {
+            double cantidad, String motivo, Venta venta, Compra compra, Remito remito) {
 
         validarMovimiento(tipo, producto, cantidad);
 
@@ -78,33 +78,45 @@ public class StockMovementService {
         return repository.save(mov);
     }
 
-    private void validarMovimiento(MovementType tipo, Producto producto, Integer cantidad) {
+    private void validarMovimiento(MovementType tipo, Producto producto, double cantidad) {
         if (producto == null) {
             throw new BusinessException("Producto requerido para registrar movimiento de stock.");
         }
-        if (cantidad == null || cantidad == 0) {
+        if (cantidad == 0) {
             throw new BusinessException("La cantidad del movimiento de stock debe ser distinta de cero.");
         }
         if (tipo != MovementType.AJUSTE && cantidad < 0) {
             throw new BusinessException("La cantidad debe ser positiva para movimientos de tipo " + tipo + ".");
         }
 
-        int stockResultante = calcularStockResultante(tipo, producto, cantidad);
-        if (stockResultante < 0) {
-            throw new BusinessException("Stock insuficiente para " + producto.getNombre()
-                    + ". Disponible: " + stockActual(producto) + ", requerido: " + cantidad + ".");
+        double stockResultante = calcularStockResultante(tipo, producto, cantidad);
+        if (stockResultante < -0.0001) {
+            throw new BusinessException("Stock insuficiente de " + producto.getNombre()
+                    + ". Disponible: " + formatear(stockActual(producto))
+                    + ", requerido: " + formatear(Math.abs(cantidad)) + ".");
         }
     }
 
-    private int calcularStockResultante(MovementType tipo, Producto producto, Integer cantidad) {
-        int stockActual = stockActual(producto);
+    private double calcularStockResultante(MovementType tipo, Producto producto, double cantidad) {
+        double stockActual = stockActual(producto);
         if (tipo == MovementType.COMPRA || tipo == MovementType.AJUSTE) {
-            return stockActual + cantidad;
+            return redondear(stockActual + cantidad);
         }
-        return stockActual - cantidad;
+        return redondear(stockActual - cantidad);
     }
 
-    private int stockActual(Producto producto) {
+    private double stockActual(Producto producto) {
         return producto.getCantidadStock() != null ? producto.getCantidadStock() : 0;
+    }
+
+    private double redondear(double valor) {
+        return Math.round(valor * 1000.0) / 1000.0;
+    }
+
+    private String formatear(double valor) {
+        if (Math.abs(valor - Math.round(valor)) < 0.0001) {
+            return String.valueOf(Math.round(valor));
+        }
+        return String.valueOf(redondear(valor));
     }
 }

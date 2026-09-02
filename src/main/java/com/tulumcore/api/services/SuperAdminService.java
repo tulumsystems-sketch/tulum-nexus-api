@@ -2,6 +2,8 @@ package com.tulumcore.api.services;
 
 import com.tulumcore.api.config.TenantContext;
 import com.tulumcore.api.controllers.CreateTenantDTO;
+import com.tulumcore.api.controllers.TenantFeatureUpdateDTO;
+import com.tulumcore.api.entities.FeatureKey;
 import com.tulumcore.api.entities.Rol;
 import com.tulumcore.api.entities.TenantConfig;
 import com.tulumcore.api.entities.Usuario;
@@ -31,6 +33,9 @@ public class SuperAdminService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private TenantFeatureService tenantFeatureService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -125,7 +130,25 @@ public class SuperAdminService {
                 .setParameter("rol", Rol.ADMIN.name())
                 .executeUpdate();
 
+        entityManager.flush();
+
+        // Features verticales (mesas, bot, barcode). Si no mandan el flag, quedan apagadas.
+        aplicarFeatureSiPedido(tenantId, FeatureKey.MESAS, request.featureMesas());
+        aplicarFeatureSiPedido(tenantId, FeatureKey.WHATSAPP_BOT, request.featureWhatsappBot());
+        aplicarFeatureSiPedido(tenantId, FeatureKey.POS_BARCODE, request.featurePosBarcode());
+
         return getConfig(tenantId);
+    }
+
+    private void aplicarFeatureSiPedido(String tenantId, FeatureKey key, Boolean habilitada) {
+        if (!Boolean.TRUE.equals(habilitada)) {
+            return;
+        }
+        tenantFeatureService.updateForTenantAsSuperAdmin(
+                tenantId,
+                key.name(),
+                new TenantFeatureUpdateDTO(true, null)
+        );
     }
 
     @Transactional

@@ -22,6 +22,9 @@ public class Usuario extends BaseEntity {
     @Column(nullable = false)
     private Rol rol = Rol.OPERADOR; // Por defecto todo usuario nuevo es OPERADOR
 
+    /** WhatsApp del Socio, Caja o Delivery. Null si no usa el bot. */
+    private String telefono;
+
     // --- Getters y Setters ---
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -34,4 +37,7 @@ public class Usuario extends BaseEntity {
 
     public Rol getRol() { return rol; }
     public void setRol(Rol rol) { this.rol = rol; }
+
+    public String getTelefono() { return telefono; }
+    public void setTelefono(String telefono) { this.telefono = telefono; }
 }

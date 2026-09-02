@@ -11,6 +11,8 @@ public class VentaDTO {
     public String nombreContacto;
     public String telefonoContacto;
     public String direccionEntrega;
+    public Boolean cobrado;
+    public Long mesaId;
     public List<ItemVentaDTO> items;
 
     // --- Getters y Setters ---
@@ -37,6 +39,12 @@ public class VentaDTO {
 
     public String getDireccionEntrega() { return direccionEntrega; }
     public void setDireccionEntrega(String direccionEntrega) { this.direccionEntrega = direccionEntrega; }
+
+    public Boolean getCobrado() { return cobrado; }
+    public void setCobrado(Boolean cobrado) { this.cobrado = cobrado; }
+
+    public Long getMesaId() { return mesaId; }
+    public void setMesaId(Long mesaId) { this.mesaId = mesaId; }
 
     public List<ItemVentaDTO> getItems() { return items; }
     public void setItems(List<ItemVentaDTO> items) { this.items = items; }

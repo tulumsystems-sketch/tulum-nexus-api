@@ -3,11 +3,13 @@ package com.tulumcore.api.controllers;
 import com.tulumcore.api.entities.Categoria;
 import com.tulumcore.api.entities.MovementType;
 import com.tulumcore.api.entities.Producto;
+import com.tulumcore.api.entities.ProductoTipo;
 import com.tulumcore.api.entities.Usuario;
 import com.tulumcore.api.exceptions.BusinessException;
 import com.tulumcore.api.exceptions.ResourceNotFoundException;
 import com.tulumcore.api.services.CategoriaService;
 import com.tulumcore.api.services.ProductoService;
+import com.tulumcore.api.services.RecetaService;
 import com.tulumcore.api.services.StockMovementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +29,9 @@ public class ProductoController {
 
     @Autowired
     private StockMovementService stockMovementService;
+
+    @Autowired
+    private RecetaService recetaService;
 
     @GetMapping
     public List<ProductoResponseDTO> getAllProductos() {
@@ -66,15 +71,31 @@ public class ProductoController {
         producto.setPrecio(dto.getPrecio());
         producto.setPrecioCosto(dto.getPrecioCosto());
         producto.setMargenPorcentaje(dto.getMargenPorcentaje());
-        Integer stockInicial = dto.getCantidadStock() != null ? dto.getCantidadStock() : 0;
-        producto.setCantidadStock(0);
+        double stockInicial = dto.getCantidadStock() != null ? dto.getCantidadStock() : 0;
+        producto.setCantidadStock(0d);
         producto.setStockMinimo(dto.getStockMinimo());
         producto.setMedidas(dto.getMedidas());
         producto.setCodigoBarras(dto.getCodigoBarras());
         producto.setImageUrl(dto.getImageUrl());
         producto.setCategoria(categoria);
+        producto.setTipo(dto.getTipo());
+        if (dto.getVendible() != null) {
+            producto.setVendible(dto.getVendible());
+        } else {
+            producto.setVendible(!ProductoTipo.esInsumo(producto.getTipo()));
+        }
+        if (dto.getPublicadoEnCatalogo() != null) {
+            producto.setPublicadoEnCatalogo(dto.getPublicadoEnCatalogo());
+        } else {
+            producto.setPublicadoEnCatalogo(productoService.catalogoPublicoHabilitado());
+        }
 
         Producto saved = productoService.createOrUpdateProducto(producto);
+        if (ProductoTipo.esInsumo(saved.getTipo())) {
+            recetaService.guardar(saved, java.util.List.of());
+        } else {
+            recetaService.guardar(saved, dto.getReceta());
+        }
 
         if (stockInicial > 0) {
             Usuario usuario = stockMovementService.getCurrentUser();
@@ -95,7 +116,9 @@ public class ProductoController {
         existente.setPrecio(dto.getPrecio());
         existente.setPrecioCosto(dto.getPrecioCosto());
         existente.setMargenPorcentaje(dto.getMargenPorcentaje());
-        existente.setCantidadStock(dto.getCantidadStock());
+        if (dto.getCantidadStock() != null) {
+            existente.setCantidadStock(dto.getCantidadStock());
+        }
         existente.setStockMinimo(dto.getStockMinimo());
         existente.setMedidas(dto.getMedidas());
         existente.setCodigoBarras(dto.getCodigoBarras());
@@ -103,14 +126,29 @@ public class ProductoController {
         if (dto.getImageUrl() != null) {
             existente.setImageUrl(dto.getImageUrl());
         }
+        if (dto.getPublicadoEnCatalogo() != null) {
+            existente.setPublicadoEnCatalogo(dto.getPublicadoEnCatalogo());
+        }
 
         if (dto.getCategoriaId() != null) {
             Categoria categoria = categoriaService.getCategoriaById(dto.getCategoriaId())
                     .orElseThrow(() -> new ResourceNotFoundException("Categoría no encontrada con id: " + dto.getCategoriaId()));
             existente.setCategoria(categoria);
         }
+        if (dto.getTipo() != null) {
+            existente.setTipo(dto.getTipo());
+        }
+        if (dto.getVendible() != null) {
+            existente.setVendible(dto.getVendible());
+        }
 
-        return toDTO(productoService.createOrUpdateProducto(existente));
+        Producto saved = productoService.createOrUpdateProducto(existente);
+        if (ProductoTipo.esInsumo(saved.getTipo())) {
+            recetaService.guardar(saved, java.util.List.of());
+        } else if (dto.getReceta() != null) {
+            recetaService.guardar(saved, dto.getReceta());
+        }
+        return toDTO(saved);
     }
 
     @DeleteMapping("/{id}")
@@ -119,6 +157,20 @@ public class ProductoController {
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con id: " + id));
         productoService.deleteProducto(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/catalogo")
+    public ProductoResponseDTO publicarEnCatalogo(
+            @PathVariable Long id,
+            @RequestBody CatalogoProductoDTO dto
+    ) {
+        if (dto == null || dto.publicadoEnCatalogo() == null) {
+            throw new BusinessException("Indicá si el producto se publica en la tienda.");
+        }
+        Producto existente = productoService.getProductoById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con id: " + id));
+        existente.setPublicadoEnCatalogo(dto.publicadoEnCatalogo());
+        return toDTO(productoService.createOrUpdateProducto(existente));
     }
 
     // =============================================
@@ -146,6 +198,11 @@ public class ProductoController {
                 p.getMedidas(),
                 p.getCodigoBarras(),
                 p.getImageUrl(),
+                p.isPublicadoEnCatalogo(),
+                p.getTipo(),
+                p.isVendible(),
+                recetaService.porcionesEstimadas(p),
+                recetaService.listar(p.getId()),
                 categoriaDTO
         );
     }

@@ -35,7 +35,7 @@ public class DashboardController {
 
         List<Producto> productos = productoRepository.findAllByTenantId(tenant);
         int totalProductos = productos.size();
-        int stockTotal = productos.stream().mapToInt(p -> p.getCantidadStock() != null ? p.getCantidadStock() : 0).sum();
+        double stockTotal = productos.stream().mapToDouble(p -> p.getCantidadStock() != null ? p.getCantidadStock() : 0).sum();
         long bajoStock = productos.stream()
                 .filter(p -> p.getStockMinimo() != null && p.getStockMinimo() > 0
                         && p.getCantidadStock() <= p.getStockMinimo())

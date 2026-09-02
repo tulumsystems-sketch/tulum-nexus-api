@@ -1,5 +1,6 @@
 package com.tulumcore.api.repositories;
 
+import com.tulumcore.api.entities.Rol;
 import com.tulumcore.api.entities.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -13,4 +14,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     List<Usuario> findAllByTenantId(String tenantId);
 
     Optional<Usuario> findByIdAndTenantId(Long id, String tenantId);
+
+    List<Usuario> findAllByTenantIdAndRol(String tenantId, Rol rol);
+
+    Optional<Usuario> findByTenantIdAndTelefono(String tenantId, String telefono);
 }
