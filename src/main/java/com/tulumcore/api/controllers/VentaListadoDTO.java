@@ -4,6 +4,7 @@ import com.tulumcore.api.entities.Cliente;
 import com.tulumcore.api.entities.ItemVenta;
 import com.tulumcore.api.entities.Venta;
 import com.tulumcore.api.services.EstadoPedido;
+import org.hibernate.Hibernate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -74,7 +75,7 @@ public class VentaListadoDTO {
                 dto.setDireccionEntrega(cliente.getDireccion());
             }
         }
-        if (venta.getItems() != null) {
+        if (venta.getItems() != null && Hibernate.isInitialized(venta.getItems())) {
             for (ItemVenta item : venta.getItems()) {
                 String producto = item.getProducto() != null ? item.getProducto().getNombre() : "Producto";
                 Long productoId = item.getProducto() != null ? item.getProducto().getId() : null;

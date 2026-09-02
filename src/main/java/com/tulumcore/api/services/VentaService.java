@@ -20,6 +20,7 @@ import com.tulumcore.api.repositories.*;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -1234,7 +1235,7 @@ public class VentaService {
                 "montoAbonado", venta.getMontoAbonado(),
                 "vuelto", venta.getVuelto(),
                 "repartidor", venta.getRepartidorNombre(),
-                "items", venta.getItems() != null ? venta.getItems().size() : 0
+                "items", itemsCount(venta)
         );
     }
 
@@ -1473,6 +1474,7 @@ public class VentaService {
         return mapearListado(listos, hidratarItems(listos));
     }
 
+    @Transactional
     public Venta tomarSiguienteOId(Long ventaId, Usuario cadete) {
         if (ventaId != null) {
             return tomarPedidoComo(ventaId, cadete);
@@ -1515,8 +1517,15 @@ public class VentaService {
     }
 
     private Venta resolverVentaParaTomar(Long id, String tenant) {
-        return ventaRepository.findByIdAndTenantId(id, tenant)
+        return ventaRepository.findDetalleByIdAndTenantId(id, tenant)
                 .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada con id: " + id));
+    }
+
+    private int itemsCount(Venta venta) {
+        if (venta == null || venta.getItems() == null || !Hibernate.isInitialized(venta.getItems())) {
+            return 0;
+        }
+        return venta.getItems().size();
     }
 
     private void exigirCadeteDuenio(Usuario cadete, Long ventaId) {
