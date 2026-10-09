@@ -46,6 +46,27 @@ public class TenantFeatureService {
         }
     }
 
+    public String configurationJson(FeatureKey featureKey) {
+        String tenant = TenantContext.getCurrentTenant();
+        if (tenant == null || tenant.isBlank()) {
+            return null;
+        }
+        return repository.findByTenantIdAndFeatureKey(tenant, featureKey)
+                .map(f -> f.getConfigurationJson())
+                .orElse(null);
+    }
+
+    @Transactional
+    public void saveConfigurationJson(FeatureKey featureKey, String configurationJson) {
+        requireEnabled(featureKey);
+        String tenant = TenantContext.getCurrentTenant();
+        updateForTenantAsSuperAdmin(
+                tenant,
+                featureKey.name(),
+                new TenantFeatureUpdateDTO(true, configurationJson)
+        );
+    }
+
     public Map<FeatureKey, Boolean> listCurrentTenantFeatureStates() {
         String tenant = TenantContext.getCurrentTenant();
         Map<FeatureKey, Boolean> states = defaultFeatureStates();
@@ -107,7 +128,7 @@ public class TenantFeatureService {
         int updated = entityManager.createNativeQuery("""
                         UPDATE tenant_features
                         SET enabled = :enabled,
-                            configuration_json = :configurationJson,
+                            configuration_json = COALESCE(:configurationJson, configuration_json),
                             updated_at = :updatedAt
                         WHERE tenant_id = :tenantId
                           AND feature_key = :featureKey

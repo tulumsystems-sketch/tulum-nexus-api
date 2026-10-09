@@ -21,5 +21,6 @@ public record CreateTenantDTO(
         Double margenPorDefecto,
         Boolean featureMesas,
         Boolean featureWhatsappBot,
-        Boolean featurePosBarcode
+        Boolean featurePosBarcode,
+        Boolean featureAgenda
 ) {}

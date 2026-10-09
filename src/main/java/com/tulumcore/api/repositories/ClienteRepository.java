@@ -11,4 +11,8 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     List<Cliente> findAllByTenantId(String tenantId);
 
     Optional<Cliente> findByIdAndTenantId(Long id, String tenantId);
+
+    Optional<Cliente> findFirstByTenantIdAndDniIgnoreCase(String tenantId, String dni);
+
+    List<Cliente> findByTenantIdAndTelefono(String tenantId, String telefono);
 }

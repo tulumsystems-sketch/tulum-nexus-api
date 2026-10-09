@@ -79,6 +79,7 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "REPARTIDOR", "SUPER_ADMIN")
                         .requestMatchers("/api/productos/**", "/api/categorias/**", "/api/clientes/**",
                                 "/api/proveedores/**", "/api/compras/**", "/api/mesas/**",
+                                "/api/agenda/**",
                                 "/api/stock-movements/**", "/api/audit-log/**", "/api/alertas/**",
                                 "/api/dashboard/**", "/api/media/**")
                         .hasAnyRole("ADMIN", "OPERADOR", "PREVENTISTA", "SUPER_ADMIN")

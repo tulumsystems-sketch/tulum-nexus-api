@@ -3,6 +3,7 @@ package com.tulumcore.api.controllers;
 import com.tulumcore.api.entities.FeatureKey;
 import com.tulumcore.api.entities.Venta;
 import com.tulumcore.api.exceptions.BusinessException;
+import com.tulumcore.api.services.AgendaService;
 import com.tulumcore.api.services.BotOperacionService;
 import com.tulumcore.api.services.CanalVenta;
 import com.tulumcore.api.services.TelefonoWhatsApp;
@@ -22,6 +23,7 @@ public class ExternalBotController {
     @Autowired private VentaService ventaService;
     @Autowired private TenantFeatureService tenantFeatureService;
     @Autowired private BotOperacionService botOperacionService;
+    @Autowired private AgendaService agendaService;
 
     @GetMapping("/buscar")
     public ResponseEntity<List<BotProductoDTO>> buscarParaBot(@RequestParam("q") String query) {
@@ -101,6 +103,94 @@ public class ExternalBotController {
         tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
         return ResponseEntity.ok(ventaService.listarEquipoWhatsApp());
     }
+
+    @GetMapping("/contexto")
+    public ResponseEntity<BotContextoDTO> contexto() {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        return ResponseEntity.ok(agendaService.contexto());
+    }
+
+    @GetMapping("/agenda/hoy")
+    public ResponseEntity<List<TurnoListadoDTO>> agendaHoy() {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        return ResponseEntity.ok(agendaService.listar(null, null));
+    }
+
+    @GetMapping("/agenda/huecos")
+    public ResponseEntity<List<AgendaHuecosDiaDTO>> agendaHuecos(
+            @RequestParam(value = "dias", defaultValue = "5") int dias
+    ) {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        return ResponseEntity.ok(agendaService.huecosProximos(dias));
+    }
+
+    @GetMapping("/agenda/mios")
+    public ResponseEntity<List<TurnoListadoDTO>> agendaMios(@RequestParam("telefono") String telefono) {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        return ResponseEntity.ok(agendaService.mios(telefono));
+    }
+
+    @PostMapping("/agenda/turno")
+    public ResponseEntity<TurnoListadoDTO> agendaPedir(@RequestBody TurnoDTO dto) {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        return ResponseEntity.ok(agendaService.crear(dto, false));
+    }
+
+    private Long turnoIdDe(TurnoDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        if (dto.getTurnoId() != null) {
+            return dto.getTurnoId();
+        }
+        return dto.getId();
+    }
+
+    @PostMapping("/agenda/confirmar")
+    public ResponseEntity<TurnoListadoDTO> agendaConfirmar(@RequestBody TurnoDTO dto) {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        Long turnoId = turnoIdDe(dto);
+        if (turnoId == null) {
+            throw new BusinessException("Falta el turno.");
+        }
+        return ResponseEntity.ok(agendaService.confirmarMio(turnoId, dto.getTelefono()));
+    }
+
+    @PostMapping("/agenda/cancelar")
+    public ResponseEntity<TurnoListadoDTO> agendaCancelar(@RequestBody TurnoDTO dto) {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        Long turnoId = turnoIdDe(dto);
+        if (turnoId == null) {
+            throw new BusinessException("Falta el turno.");
+        }
+        return ResponseEntity.ok(agendaService.cancelarMio(turnoId, dto.getTelefono()));
+    }
+
+    @PostMapping("/agenda/estado")
+    public ResponseEntity<TurnoListadoDTO> agendaEstado(@RequestBody TurnoDTO dto) {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        Long turnoId = turnoIdDe(dto);
+        if (turnoId == null) {
+            throw new BusinessException("Falta el turno.");
+        }
+        return ResponseEntity.ok(agendaService.cambiarEstado(turnoId, dto.getEstado()));
+    }
+
+    @GetMapping("/agenda/recordatorios")
+    public ResponseEntity<List<TurnoListadoDTO>> agendaRecordatorios() {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        return ResponseEntity.ok(agendaService.recordatoriosPendientes());
+    }
+
+    @PostMapping("/agenda/recordatorio")
+    public ResponseEntity<TurnoListadoDTO> agendaRecordatorioAck(@RequestBody TurnoRecordatorioAckDTO dto) {
+        tenantFeatureService.requireEnabled(FeatureKey.WHATSAPP_BOT);
+        if (dto == null || dto.turnoId() == null) {
+            throw new BusinessException("Falta el turno.");
+        }
+        return ResponseEntity.ok(agendaService.marcarRecordatorio(dto.turnoId(), dto.tipo()));
+    }
+
 
     @GetMapping("/operacion")
     public ResponseEntity<BotOperacionDTO> operacion(@RequestParam("telefono") String telefono) {

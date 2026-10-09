@@ -43,6 +43,7 @@ public class ClienteController {
         if (dto.getSaldoCuentaCorriente() != null) {
             cliente.setSaldoCuentaCorriente(dto.getSaldoCuentaCorriente());
         }
+        aplicarFicha(cliente, dto);
 
         Cliente creado = clienteService.createOrUpdateCliente(cliente);
         return ResponseEntity.ok(toDTO(creado));
@@ -62,6 +63,7 @@ public class ClienteController {
         if (dto.getSaldoCuentaCorriente() != null) {
             existente.setSaldoCuentaCorriente(dto.getSaldoCuentaCorriente());
         }
+        aplicarFicha(existente, dto);
 
         return toDTO(clienteService.createOrUpdateCliente(existente));
     }
@@ -86,7 +88,38 @@ public class ClienteController {
                 cliente.getTelefono(),
                 cliente.getDireccion(),
                 cliente.getGoogleMapsUrl(),
-                cliente.getSaldoCuentaCorriente()
+                cliente.getSaldoCuentaCorriente(),
+                cliente.getDni(),
+                cliente.getObraSocial(),
+                cliente.getNroAfiliado(),
+                cliente.getNotaSecretaria()
         );
+    }
+
+    private void aplicarFicha(Cliente cliente, ClienteDTO dto) {
+        if (dto.getDni() != null) {
+            cliente.setDni(texto(dto.getDni()));
+        }
+        if (dto.getObraSocial() != null) {
+            cliente.setObraSocial(texto(dto.getObraSocial()));
+        }
+        if (dto.getNroAfiliado() != null) {
+            cliente.setNroAfiliado(texto(dto.getNroAfiliado()));
+        }
+        if (dto.getNotaSecretaria() != null) {
+            cliente.setNotaSecretaria(texto(dto.getNotaSecretaria()));
+        }
+        if (dto.getTelefono() != null) {
+            String tel = com.tulumcore.api.services.TelefonoWhatsApp.normalizar(dto.getTelefono());
+            cliente.setTelefono(tel != null ? tel : texto(dto.getTelefono()));
+        }
+    }
+
+    private String texto(String valor) {
+        if (valor == null) {
+            return null;
+        }
+        String recorte = valor.trim();
+        return recorte.isEmpty() ? null : recorte;
     }
 }

@@ -23,6 +23,18 @@ public class Cliente extends BaseEntity {
     @Column(name = "saldo_cuenta_corriente")
     private Double saldoCuentaCorriente = 0.0;
 
+    /** Ficha administrativa (consultorio). No es historia clínica. */
+    private String dni;
+
+    @Column(name = "obra_social")
+    private String obraSocial;
+
+    @Column(name = "nro_afiliado")
+    private String nroAfiliado;
+
+    @Column(name = "nota_secretaria", columnDefinition = "text")
+    private String notaSecretaria;
+
     // EL JSON IGNORE QUE SALVA EL ERROR 500
     @JsonIgnore
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL)
@@ -48,6 +60,15 @@ public class Cliente extends BaseEntity {
 
     public Double getSaldoCuentaCorriente() { return saldoCuentaCorriente; }
     public void setSaldoCuentaCorriente(Double saldoCuentaCorriente) { this.saldoCuentaCorriente = saldoCuentaCorriente; }
+
+    public String getDni() { return dni; }
+    public void setDni(String dni) { this.dni = dni; }
+    public String getObraSocial() { return obraSocial; }
+    public void setObraSocial(String obraSocial) { this.obraSocial = obraSocial; }
+    public String getNroAfiliado() { return nroAfiliado; }
+    public void setNroAfiliado(String nroAfiliado) { this.nroAfiliado = nroAfiliado; }
+    public String getNotaSecretaria() { return notaSecretaria; }
+    public void setNotaSecretaria(String notaSecretaria) { this.notaSecretaria = notaSecretaria; }
 
     public List<Venta> getVentas() { return ventas; }
     public void setVentas(List<Venta> ventas) { this.ventas = ventas; }

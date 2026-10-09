@@ -136,19 +136,72 @@ public class SuperAdminService {
         aplicarFeatureSiPedido(tenantId, FeatureKey.MESAS, request.featureMesas());
         aplicarFeatureSiPedido(tenantId, FeatureKey.WHATSAPP_BOT, request.featureWhatsappBot());
         aplicarFeatureSiPedido(tenantId, FeatureKey.POS_BARCODE, request.featurePosBarcode());
+        aplicarFeatureSiPedido(tenantId, FeatureKey.AGENDA, request.featureAgenda());
+        if (Boolean.TRUE.equals(request.featureAgenda())) {
+            seedCatalogoConsultorio(tenantId);
+        }
 
         return getConfig(tenantId);
     }
+
+    private static final String AGENDA_CONFIG_DEFAULT = """
+            {"duracionMinutos":20,"horaInicio":"09:00","horaFin":"18:00","diasSemana":[1,2,3,4,5],"zona":"America/Argentina/Buenos_Aires"}
+            """;
 
     private void aplicarFeatureSiPedido(String tenantId, FeatureKey key, Boolean habilitada) {
         if (!Boolean.TRUE.equals(habilitada)) {
             return;
         }
+        String json = key == FeatureKey.AGENDA ? AGENDA_CONFIG_DEFAULT : null;
         tenantFeatureService.updateForTenantAsSuperAdmin(
                 tenantId,
                 key.name(),
-                new TenantFeatureUpdateDTO(true, null)
+                new TenantFeatureUpdateDTO(true, json)
         );
+    }
+
+    private void seedCatalogoConsultorio(String tenantId) {
+        try {
+            String catTable = primeraTabla("categoria", "categorias");
+            String prodTable = primeraTabla("producto", "productos");
+            if (catTable == null || prodTable == null) {
+                return;
+            }
+            Number existentes = (Number) entityManager.createNativeQuery(
+                            "SELECT COUNT(*) FROM " + prodTable + " WHERE tenant_id = :tenantId")
+                    .setParameter("tenantId", tenantId)
+                    .getSingleResult();
+            if (existentes != null && existentes.longValue() > 0) {
+                return;
+            }
+            entityManager.createNativeQuery(
+                            "INSERT INTO " + catTable + " (tenant_id, nombre) VALUES (:tenantId, 'Prácticas')")
+                    .setParameter("tenantId", tenantId)
+                    .executeUpdate();
+            Number catId = (Number) entityManager.createNativeQuery(
+                            "SELECT id FROM " + catTable + " WHERE tenant_id = :tenantId AND nombre = 'Prácticas' ORDER BY id DESC LIMIT 1")
+                    .setParameter("tenantId", tenantId)
+                    .getSingleResult();
+            entityManager.createNativeQuery(
+                            "INSERT INTO " + prodTable + " (tenant_id, nombre, precio, tipo, vendible, categoria_id) "
+                                    + "VALUES (:tenantId, 'Consulta', 20000, 'ELABORADO', TRUE, :categoriaId)")
+                    .setParameter("tenantId", tenantId)
+                    .setParameter("categoriaId", catId.longValue())
+                    .executeUpdate();
+        } catch (Exception ignored) {
+            // El demo sigue vivo: la secretaria carga Consulta a mano en Prácticas.
+        }
+    }
+
+    private String primeraTabla(String... nombres) {
+        for (String nombre : nombres) {
+            Object found = entityManager.createNativeQuery("SELECT to_regclass('public." + nombre + "')")
+                    .getSingleResult();
+            if (found != null) {
+                return nombre;
+            }
+        }
+        return null;
     }
 
     @Transactional

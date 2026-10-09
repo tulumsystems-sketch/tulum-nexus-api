@@ -13,6 +13,10 @@ public class ClienteDTO {
     private String direccion;
     private String googleMapsUrl;
     private Double saldoCuentaCorriente;
+    private String dni;
+    private String obraSocial;
+    private String nroAfiliado;
+    private String notaSecretaria;
 
     // Getters y Setters
     public Long getId() { return id; }
@@ -38,4 +42,13 @@ public class ClienteDTO {
 
     public Double getSaldoCuentaCorriente() { return saldoCuentaCorriente; }
     public void setSaldoCuentaCorriente(Double saldoCuentaCorriente) { this.saldoCuentaCorriente = saldoCuentaCorriente; }
+
+    public String getDni() { return dni; }
+    public void setDni(String dni) { this.dni = dni; }
+    public String getObraSocial() { return obraSocial; }
+    public void setObraSocial(String obraSocial) { this.obraSocial = obraSocial; }
+    public String getNroAfiliado() { return nroAfiliado; }
+    public void setNroAfiliado(String nroAfiliado) { this.nroAfiliado = nroAfiliado; }
+    public String getNotaSecretaria() { return notaSecretaria; }
+    public void setNotaSecretaria(String notaSecretaria) { this.notaSecretaria = notaSecretaria; }
 }

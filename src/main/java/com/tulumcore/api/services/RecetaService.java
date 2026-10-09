@@ -156,7 +156,10 @@ public class RecetaService {
         Map<Long, Double> receta = recetaPorInsumo(plato.getId());
         Map<Long, Double> out = new LinkedHashMap<>();
         if (receta.isEmpty()) {
-            out.put(plato.getId(), porciones);
+            // Plato/práctica sin receta no consume kardex. El INSUMO vendible (bebida) sí.
+            if (ProductoTipo.esInsumo(plato.getTipo())) {
+                out.put(plato.getId(), porciones);
+            }
             return out;
         }
         for (Map.Entry<Long, Double> entry : receta.entrySet()) {

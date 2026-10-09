@@ -5,5 +5,6 @@ public enum FeatureKey {
     WHATSAPP_BOT,
     CUSTOMER_CATALOG,
     PAYMENT_LINKS,
-    MESAS
+    MESAS,
+    AGENDA
 }
